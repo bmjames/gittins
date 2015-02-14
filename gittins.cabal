@@ -23,6 +23,7 @@ executable gittins
                      , directory ==1.2.*
                      , filepath ==1.3.*
                      , ini ==0.3.*
+                     , optparse-applicative ==0.11.*
                      , text ==1.2.*
                      , unordered-containers ==0.2.*
   hs-source-dirs:      src
