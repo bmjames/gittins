@@ -1,7 +1,6 @@
 module Main where
 
-import Config (loadConfig)
-
+import Config (modifyConfig)
 import Options.Applicative
 
 data Opts = Register [FilePath]
@@ -22,4 +21,4 @@ main :: IO ()
 main = do
   opts <- execParser $ info (helper <*> parseOpts) fullDesc
   print opts
-  loadConfig >>= print
+  modifyConfig $ \config -> print config >> return config

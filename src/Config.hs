@@ -4,19 +4,28 @@ module Config (
     Config(..)
   , Repository(..)
   , loadConfig
-    , loadIni
+  , saveConfig
+  , modifyConfig
 ) where
 
-import Data.HashMap.Strict (HashMap, empty, foldrWithKey, (!))
-import Data.Ini (Ini(..), readIniFile)
-import Data.Text (Text, unpack)
+import Data.HashMap.Strict (HashMap, (!), empty, foldrWithKey, fromList)
+import Data.Ini (Ini(..), readIniFile, writeIniFile)
+import Data.Text (Text, pack, unpack)
 import System.Directory (doesFileExist, getHomeDirectory)
 import System.FilePath ((</>))
 
 loadConfig :: IO Config
-loadConfig = fmap parseConfig loadIni
+loadConfig = fmap fromIni loadIni
+
+saveConfig :: Config -> IO ()
+saveConfig config = do iniPath <- configFile
+                       writeIniFile iniPath (toIni config)
+
+modifyConfig :: (Config -> IO Config) -> IO ()
+modifyConfig f = loadConfig >>= f >>= saveConfig
 
 data Config = Config { repositories :: [Repository] } deriving (Eq, Ord, Show)
+
 data Repository = Repository { name :: String, path :: FilePath } deriving (Eq, Ord, Show)
 
 configFile :: IO FilePath
@@ -33,10 +42,16 @@ loadIni = do iniPath <- configFile
                Right i -> return i
                Left _  -> error $ "Failed to parse INI format [" ++ iniPath ++ "]"
 
-parseConfig :: Ini -> Config
-parseConfig (Ini repos) =
+fromIni :: Ini -> Config
+fromIni (Ini repos) =
   Config $ foldrWithKey (\n ps -> (repository n ps :)) [] repos
 
   where
     repository :: Text -> HashMap Text Text -> Repository
     repository name props = Repository (unpack name) (unpack $ props ! "path")
+
+toIni :: Config -> Ini
+toIni (Config repos) = Ini $ fromList (map fromRepository repos)
+
+  where
+    fromRepository (Repository n p) = (pack n, fromList [("path", pack p)])
