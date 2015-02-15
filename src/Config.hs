@@ -8,7 +8,7 @@ module Config (
   , modifyConfig
 ) where
 
-import Data.HashMap.Strict (HashMap, (!), empty, foldrWithKey, fromList)
+import Data.HashMap.Strict (HashMap, empty, foldrWithKey, fromList)
 import Data.Ini (Ini(..), readIniFile, writeIniFile)
 import Data.Text (Text, pack, unpack)
 import System.Directory (doesFileExist, getHomeDirectory)
@@ -26,7 +26,7 @@ modifyConfig f = loadConfig >>= f >>= saveConfig
 
 data Config = Config { repositories :: [Repository] } deriving (Eq, Ord, Show)
 
-data Repository = Repository { name :: String, path :: FilePath } deriving (Eq, Ord, Show)
+data Repository = Repository { path :: FilePath } deriving (Eq, Ord, Show)
 
 configFile :: IO FilePath
 configFile = do homeDir <- getHomeDirectory
@@ -48,10 +48,10 @@ fromIni (Ini repos) =
 
   where
     repository :: Text -> HashMap Text Text -> Repository
-    repository name props = Repository (unpack name) (unpack $ props ! "path")
+    repository path props = Repository (unpack path)
 
 toIni :: Config -> Ini
 toIni (Config repos) = Ini $ fromList (map fromRepository repos)
 
   where
-    fromRepository (Repository n p) = (pack n, fromList [("path", pack p)])
+    fromRepository (Repository path) = (pack path, empty)
