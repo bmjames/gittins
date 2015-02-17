@@ -8,6 +8,7 @@ module Config (
   , saveConfig
   , modifyConfig
   , modifyRepository
+  , addToGroups
 ) where
 
 import Data.Foldable (foldMap)
@@ -71,7 +72,7 @@ toIni (Config repos) = Ini $ fromList (map fromRepository repos)
 
   where
     fromRepository :: Repository -> (Text, HashMap Text Text)
-    fromRepository repo@(Repository p gs) = (pack p, settings repo)
+    fromRepository repo@(Repository p _) = (pack p, settings repo)
 
     settings :: Repository -> HashMap Text Text
     settings (Repository _ gs) =
@@ -83,3 +84,7 @@ modifyRepository f (Config repos) = fmap Config (go repos) where
   go (r:rs) | Just r' <- f r = Just (r':rs)
             | otherwise = fmap (r:) (go rs)
   go [] = Nothing
+
+addToGroups :: [GroupId] -> FilePath -> Config -> Maybe Config
+addToGroups groupIds path = modifyRepository $ \(Repository p gs) ->
+  if p == path then Just $ Repository p (nub $ groupIds ++ gs) else Nothing
