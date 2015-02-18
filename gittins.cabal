@@ -22,7 +22,9 @@ executable gittins
   build-depends:       base >=4.7 && <4.8
                      , directory ==1.2.*
                      , filepath ==1.3.*
+                     , free ==4.10.*
                      , ini ==0.3.*
+                     , mtl ==2.1.*
                      , optparse-applicative ==0.11.*
                      , text ==1.2.*
                      , unordered-containers ==0.2.*

@@ -1,7 +1,9 @@
 module Main where
 
 import Config
-import Data.Foldable (foldlM)
+import Types
+
+import Data.Foldable (forM_)
 import Data.Text (pack)
 import Options.Applicative
 import System.Directory (canonicalizePath)
@@ -33,71 +35,64 @@ parseOpts = subparser $
     paths = some $ strArgument (metavar "PATH")
 
 -- | Entry point for register command
-register :: [FilePath] -> [GroupId] -> IO ()
-register paths groupIds = modifyConfig $ \config -> foldlM addRepo config paths
+register :: [GroupId] -> [FilePath] -> Act ()
+register groupIds paths = getConfig >>= forM_ paths . addRepo
 
   where
-    addRepo :: Config -> FilePath -> IO Config
-    addRepo config@(Config repos) p = do
-      canonical <- canonicalizePath p
-      if any (\r -> path r == canonical) repos
-        then do putStrLn ("Path [" ++ canonical ++ "] is already registered.")
-                return config
-        else do putStrLn ("Registering [" ++ canonical ++ "]")
-                let repo = Repository canonical groupIds
-                return $ Config (repo : repos)
+    addRepo :: Config -> FilePath -> Act ()
+    addRepo (Config repos) p
+      | any ((== p) . path) repos =
+          logInfo $ "Path [" ++ p ++ "] is already registered."
+      | otherwise = do
+          logInfo $ "Registering [" ++ p ++ "]"
+          putConfig $ Config (Repository p groupIds : repos)
 
 -- | Entry point for unregister command
-unregister :: [FilePath] -> IO ()
-unregister paths = modifyConfig $ \config -> foldlM rmRepo config paths
+unregister :: [FilePath] -> Act ()
+unregister paths = getConfig >>= forM_ paths . rmRepo
 
   where
-    rmRepo :: Config -> FilePath -> IO Config
-    rmRepo config@(Config repos) p = do
-      canonical <- canonicalizePath p
-      if not $ any (\r -> path r == canonical) repos
-         then do putStrLn ("Path [" ++ canonical ++ "] does not appear to be registered.")
-                 return config
-         else do putStrLn ("Unregistering [" ++ canonical ++ "]")
-                 let repos' = filter (\r -> path r /= canonical) repos
-                 return $ Config repos'
+    rmRepo :: Config -> FilePath -> Act ()
+    rmRepo (Config repos) p
+      | all ((/= p) . path) repos =
+          logInfo $ "Path [" ++ p ++ "] does not appear to be registered."
+      | otherwise = do
+          logInfo $ "Unregistering [" ++ p ++ "]"
+          let repos' = filter (\r -> path r /= p) repos
+          putConfig (Config repos')
 
 -- | Entry point for add-to-group command
-addToGroup :: [GroupId] -> [FilePath] -> IO ()
-addToGroup groupIds paths = modifyConfig $ \config -> foldlM addGroup config paths
+addToGroup :: [GroupId] -> [FilePath] -> Act ()
+addToGroup groupIds paths = getConfig >>= forM_ paths . addGroup
 
   where
-    addGroup :: Config -> FilePath -> IO Config
+    addGroup :: Config -> FilePath -> Act ()
     addGroup config path = do
-      canonical <- canonicalizePath path
-      let config' = addToGroups groupIds canonical config
+      let config' = addToGroups groupIds path config
       case config' of
-        Just c  -> return c
-        Nothing -> do putStrLn ("Path [" ++ canonical ++ "] does not appear to be registered.")
-                      return config
+        Just c  -> putConfig c
+        Nothing -> logInfo $ "Path [" ++ path ++ "] does not appear to be registered."
 
 -- | Entry point for remove-from-group command
-removeFromGroup :: [GroupId] -> [FilePath] -> IO ()
-removeFromGroup groupIds paths = modifyConfig $ \config -> foldlM removeGroup config paths
+removeFromGroup :: [GroupId] -> [FilePath] -> Act ()
+removeFromGroup groupIds paths = getConfig >>= forM_ paths . rmGroup
 
   where
-    removeGroup :: Config -> FilePath -> IO Config
-    removeGroup config path = do
-      canonical <- canonicalizePath path
+    rmGroup :: Config -> FilePath -> Act ()
+    rmGroup config path = do
       let config' = modifyRepository (\(Repository p gs) ->
-            if p == canonical
+            if p == path
                then Just $ Repository p (filter (not . flip elem groupIds) gs)
                else Nothing) config
       case config' of
-        Just c  -> return c
-        Nothing -> do putStrLn ("Path [" ++ canonical ++ "] does not appear to be registered.")
-                      return config
+        Just c  -> putConfig c
+        Nothing -> logInfo $ "Path [" ++ path ++ "] does not appear to be registered."
 
 main :: IO ()
 main = do
   opts <- execParser $ info (helper <*> parseOpts) fullDesc
   case opts of
-    Register paths groupIds        -> register paths groupIds
-    Unregister paths               -> unregister paths
-    AddToGroup groupIds paths      -> addToGroup groupIds paths
-    RemoveFromGroup groupIds paths -> removeFromGroup groupIds paths
+    Register paths groupIds        -> mapM canonicalizePath paths >>= runIO . register groupIds
+    Unregister paths               -> mapM canonicalizePath paths >>= runIO . unregister
+    AddToGroup groupIds paths      -> mapM canonicalizePath paths >>= runIO . addToGroup groupIds
+    RemoveFromGroup groupIds paths -> mapM canonicalizePath paths >>= runIO . removeFromGroup groupIds
