@@ -100,9 +100,10 @@ removeFromGroup groupIds paths = getConfig >>= forM_ paths . rmGroup
 
 -- | Entry point for status command
 status :: [GroupId] -> Act ()
-status groupIds = do Config repos <- getConfig
-                     forM_ repos $ \(Repository p gs) ->
-                       when (any (`elem` groupIds) gs) $ shell p "git" ["status"] >>= logInfo
+status groupIds = do
+  Config repos <- getConfig
+  forM_ repos $ \(Repository p gs) ->
+    when (null groupIds || any (`elem` groupIds) gs) $ shell p "git" ["status"] >>= logInfo
 
 main :: IO ()
 main = do
