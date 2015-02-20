@@ -1,8 +1,11 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main where
 
 import Config
 import Types
 
+import Control.Monad (when)
 import Data.Foldable (forM_)
 import Data.Text (pack)
 import Options.Applicative
@@ -12,10 +15,13 @@ data Opts = Register [FilePath] [GroupId]
           | Unregister [FilePath]
           | AddToGroup [GroupId] [FilePath]
           | RemoveFromGroup [GroupId] [FilePath]
+          | Status [GroupId]
           deriving (Eq, Ord, Show)
 
 parseOpts :: Parser Opts
 parseOpts = subparser $
+
+  -- Manage repositories and groups
      command "register" (info registerOpts
                               (progDesc "Register one or more repositories"))
   <> command "unregister" (info unregisterOpts
@@ -25,6 +31,9 @@ parseOpts = subparser $
   <> command "remove-from-group" (info removeFromGroupOpts
                                        (progDesc "Remove one or more repositories from a group"))
 
+  -- Git commands
+  <> command "status" (info statusOpts fullDesc)
+
   where
     registerOpts = Register <$> paths <*> groupIds
     unregisterOpts = Unregister <$> paths
@@ -33,6 +42,7 @@ parseOpts = subparser $
     groupIds = many $ pack <$> strOption (short 'g' <> long "group" <> metavar "GROUP")
     groupId = pack <$> strArgument (metavar "GROUP")
     paths = some $ strArgument (metavar "PATH")
+    statusOpts = Status <$> groupIds
 
 -- | Entry point for register command
 register :: [GroupId] -> [FilePath] -> Act ()
@@ -42,9 +52,9 @@ register groupIds paths = getConfig >>= forM_ paths . addRepo
     addRepo :: Config -> FilePath -> Act ()
     addRepo (Config repos) p
       | any ((== p) . path) repos =
-          logInfo $ "Path [" ++ p ++ "] is already registered."
+          logInfo $ "Path [" <> pack p <> "] is already registered."
       | otherwise = do
-          logInfo $ "Registering [" ++ p ++ "]"
+          logInfo $ "Registering [" <> pack p <> "]"
           putConfig $ Config (Repository p groupIds : repos)
 
 -- | Entry point for unregister command
@@ -55,9 +65,9 @@ unregister paths = getConfig >>= forM_ paths . rmRepo
     rmRepo :: Config -> FilePath -> Act ()
     rmRepo (Config repos) p
       | all ((/= p) . path) repos =
-          logInfo $ "Path [" ++ p ++ "] does not appear to be registered."
+          logInfo $ "Path [" <> pack p <> "] does not appear to be registered."
       | otherwise = do
-          logInfo $ "Unregistering [" ++ p ++ "]"
+          logInfo $ "Unregistering [" <> pack p <> "]"
           let repos' = filter (\r -> path r /= p) repos
           putConfig (Config repos')
 
@@ -71,7 +81,7 @@ addToGroup groupIds paths = getConfig >>= forM_ paths . addGroup
       let config' = addToGroups groupIds path config
       case config' of
         Just c  -> putConfig c
-        Nothing -> logInfo $ "Path [" ++ path ++ "] does not appear to be registered."
+        Nothing -> logInfo $ "Path [" <> pack path <> "] does not appear to be registered."
 
 -- | Entry point for remove-from-group command
 removeFromGroup :: [GroupId] -> [FilePath] -> Act ()
@@ -86,7 +96,13 @@ removeFromGroup groupIds paths = getConfig >>= forM_ paths . rmGroup
                else Nothing) config
       case config' of
         Just c  -> putConfig c
-        Nothing -> logInfo $ "Path [" ++ path ++ "] does not appear to be registered."
+        Nothing -> logInfo $ "Path [" <> pack path <> "] does not appear to be registered."
+
+-- | Entry point for status command
+status :: [GroupId] -> Act ()
+status groupIds = do Config repos <- getConfig
+                     forM_ repos $ \(Repository p gs) ->
+                       when (any (`elem` groupIds) gs) $ shell p "git" ["status"] >>= logInfo
 
 main :: IO ()
 main = do
@@ -96,3 +112,4 @@ main = do
     Unregister paths               -> mapM canonicalizePath paths >>= runIO . unregister
     AddToGroup groupIds paths      -> mapM canonicalizePath paths >>= runIO . addToGroup groupIds
     RemoveFromGroup groupIds paths -> mapM canonicalizePath paths >>= runIO . removeFromGroup groupIds
+    Status groupIds                -> runIO $ status groupIds
