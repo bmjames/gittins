@@ -5,21 +5,23 @@ module Types where
 import Config
 import Control.Monad.Free (Free(..), liftF)
 import Control.Monad.State.Lazy (StateT, get, liftIO, put, runStateT)
-import Data.Text (Text)
+import System.IO (hGetContents)
 import System.Process (CreateProcess(..), CmdSpec(RawCommand), StdStream(..), createProcess)
+import Text.PrettyPrint.ANSI.Leijen (Doc, putDoc, text)
 
-import qualified Data.Text.IO as T
-
-data Act' a = Info Text a
+data Act' a = Print Doc a
             | LoadConfig (Config -> a)
             | SaveConfig Config a
-            | Shell CreateProcess (Text -> a)
+            | Shell CreateProcess (String -> a)
             deriving Functor
 
 type Act a = Free Act' a
 
-logInfo :: Text -> Act ()
-logInfo msg = liftF (Info msg ())
+printDoc :: Doc -> Act ()
+printDoc doc = liftF (Print doc ())
+
+logInfo :: String -> Act ()
+logInfo = printDoc . text
 
 getConfig :: Act Config
 getConfig = liftF (LoadConfig id)
@@ -27,7 +29,7 @@ getConfig = liftF (LoadConfig id)
 putConfig :: Config -> Act ()
 putConfig config = liftF (SaveConfig config ())
 
-shell :: FilePath -> FilePath -> [String] -> Act Text
+shell :: FilePath -> FilePath -> [String] -> Act String
 shell cwd cmd args = liftF (Shell cp id) where
   cp = CreateProcess { cmdspec = RawCommand cmd args
                      , cwd = Just cwd
@@ -42,8 +44,8 @@ shell cwd cmd args = liftF (Shell cp id) where
 
 interpretStateTIO :: Act a -> StateT Config IO a
 interpretStateTIO act = case act of
-  Free (Info msg a) -> do
-    liftIO (T.putStrLn msg)
+  Free (Print doc a) -> do
+    liftIO (putDoc doc)
     interpretStateTIO a
 
   Free (LoadConfig f) -> do
@@ -57,7 +59,7 @@ interpretStateTIO act = case act of
   Free (Shell cp f) -> do
     out <- liftIO $ do
       (_, Just hOut, _, _) <- liftIO (createProcess cp)
-      T.hGetContents hOut
+      hGetContents hOut
     interpretStateTIO (f out)
 
   Pure a -> return a

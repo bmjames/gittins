@@ -1,15 +1,15 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Main where
 
 import Config
 import Types
+import Pretty
 
 import Control.Monad (when)
 import Data.Foldable (forM_)
 import Data.Text (pack)
 import Options.Applicative
 import System.Directory (canonicalizePath)
+import System.FilePath (takeFileName)
 
 data Opts = Register [FilePath] [GroupId]
           | Unregister [FilePath]
@@ -52,9 +52,9 @@ register groupIds paths = getConfig >>= forM_ paths . addRepo
     addRepo :: Config -> FilePath -> Act ()
     addRepo (Config repos) p
       | any ((== p) . path) repos =
-          logInfo $ "Path [" <> pack p <> "] is already registered."
+          logInfo $ "Path [" ++ p ++ "] is already registered."
       | otherwise = do
-          logInfo $ "Registering [" <> pack p <> "]"
+          logInfo $ "Registering [" ++ p ++ "]"
           putConfig $ Config (Repository p groupIds : repos)
 
 -- | Entry point for unregister command
@@ -65,9 +65,9 @@ unregister paths = getConfig >>= forM_ paths . rmRepo
     rmRepo :: Config -> FilePath -> Act ()
     rmRepo (Config repos) p
       | all ((/= p) . path) repos =
-          logInfo $ "Path [" <> pack p <> "] does not appear to be registered."
+          logInfo $ "Path [" ++ p ++ "] does not appear to be registered."
       | otherwise = do
-          logInfo $ "Unregistering [" <> pack p <> "]"
+          logInfo $ "Unregistering [" ++ p ++ "]"
           let repos' = filter (\r -> path r /= p) repos
           putConfig (Config repos')
 
@@ -81,7 +81,7 @@ addToGroup groupIds paths = getConfig >>= forM_ paths . addGroup
       let config' = addToGroups groupIds path config
       case config' of
         Just c  -> putConfig c
-        Nothing -> logInfo $ "Path [" <> pack path <> "] does not appear to be registered."
+        Nothing -> logInfo $ "Path [" ++ path ++ "] does not appear to be registered."
 
 -- | Entry point for remove-from-group command
 removeFromGroup :: [GroupId] -> [FilePath] -> Act ()
@@ -96,21 +96,25 @@ removeFromGroup groupIds paths = getConfig >>= forM_ paths . rmGroup
                else Nothing) config
       case config' of
         Just c  -> putConfig c
-        Nothing -> logInfo $ "Path [" <> pack path <> "] does not appear to be registered."
+        Nothing -> logInfo $ "Path [" ++ path ++ "] does not appear to be registered."
 
 -- | Entry point for status command
 status :: [GroupId] -> Act ()
 status groupIds = do
   Config repos <- getConfig
   forM_ repos $ \(Repository p gs) ->
-    when (null groupIds || any (`elem` groupIds) gs) $ shell p "git" ["status"] >>= logInfo
+    when (null groupIds || any (`elem` groupIds) gs) $
+      shell p "git" ["status"] >>= printDoc . summary (takeFileName p)
 
 main :: IO ()
 main = do
   opts <- execParser $ info (helper <*> parseOpts) fullDesc
   case opts of
-    Register paths groupIds        -> mapM canonicalizePath paths >>= runIO . register groupIds
-    Unregister paths               -> mapM canonicalizePath paths >>= runIO . unregister
-    AddToGroup groupIds paths      -> mapM canonicalizePath paths >>= runIO . addToGroup groupIds
-    RemoveFromGroup groupIds paths -> mapM canonicalizePath paths >>= runIO . removeFromGroup groupIds
+    Register paths groupIds        -> canonicalizeAll paths >>= runIO . register groupIds
+    Unregister paths               -> canonicalizeAll paths >>= runIO . unregister
+    AddToGroup groupIds paths      -> canonicalizeAll paths >>= runIO . addToGroup groupIds
+    RemoveFromGroup groupIds paths -> canonicalizeAll paths >>= runIO . removeFromGroup groupIds
     Status groupIds                -> runIO $ status groupIds
+
+  where
+    canonicalizeAll = mapM canonicalizePath
