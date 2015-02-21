@@ -69,9 +69,9 @@ register groupIds paths = getConfig >>= forM_ paths . addRepo
     addRepo :: Config -> FilePath -> Act ()
     addRepo (Config repos) p
       | any ((== p) . repoPath) repos =
-          logInfo $ "Path [" ++ p ++ "] is already registered."
+          logInfo (AlreadyRegistered p)
       | otherwise = do
-          logInfo $ "Registering [" ++ p ++ "]"
+          logInfo (Registering p)
           putConfig $ Config (Repository p groupIds : repos)
 
 -- | Entry point for unregister command
@@ -82,9 +82,9 @@ unregister paths = getConfig >>= forM_ paths . rmRepo
     rmRepo :: Config -> FilePath -> Act ()
     rmRepo (Config repos) p
       | all ((/= p) . repoPath) repos =
-          logInfo $ "Path [" ++ p ++ "] does not appear to be registered."
+          logInfo (NotRegistered p)
       | otherwise = do
-          logInfo $ "Unregistering [" ++ p ++ "]"
+          logInfo (Unregistering p)
           let repos' = filter ((/= p) . repoPath) repos
           putConfig (Config repos')
 
@@ -98,7 +98,7 @@ addToGroup groupIds paths = getConfig >>= forM_ paths . addGroup
       let config' = addToGroups groupIds path config
       case config' of
         Just c  -> putConfig c
-        Nothing -> logInfo $ "Path [" ++ path ++ "] does not appear to be registered."
+        Nothing -> logInfo (NotRegistered path)
 
 -- | Entry point for remove-from-group command
 removeFromGroup :: [GroupId] -> [FilePath] -> Act ()
@@ -113,7 +113,7 @@ removeFromGroup groupIds paths = getConfig >>= forM_ paths . rmGroup
                else Nothing) config
       case config' of
         Just c  -> putConfig c
-        Nothing -> logInfo $ "Path [" ++ path ++ "] does not appear to be registered."
+        Nothing -> logInfo (NotRegistered path)
 
 -- | Entry point for list command
 list :: [GroupId] -> Act ()

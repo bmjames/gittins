@@ -1,6 +1,17 @@
-module Pretty where
+module Pretty (
+    list
+  , logMessage
+  , summary
 
-import Text.PrettyPrint.ANSI.Leijen
+  -- * Re-exports from ansi-wl-pprint
+  , Doc
+  , putDoc
+) where
+
+import Text.PrettyPrint.ANSI.Leijen hiding (list)
+
+logMessage :: String -> Doc
+logMessage = text
 
 list :: [String] -> Doc
 list = vcat . map text

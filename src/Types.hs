@@ -3,12 +3,15 @@
 module Types where
 
 import Config
+import Pretty
+
 import Control.Monad (unless)
 import Control.Monad.Free (Free(..), liftF)
 import Control.Monad.State.Lazy (StateT, get, liftIO, put, runStateT)
 import System.IO (hGetContents)
 import System.Process (CreateProcess(..), CmdSpec(RawCommand), StdStream(..), createProcess)
-import Text.PrettyPrint.ANSI.Leijen (Doc, putDoc, text)
+
+import qualified Pretty as P
 
 data Act' a = Print Doc a
             | LoadConfig (Config -> a)
@@ -21,8 +24,8 @@ type Act a = Free Act' a
 printDoc :: Doc -> Act ()
 printDoc doc = liftF (Print doc ())
 
-logInfo :: String -> Act ()
-logInfo = printDoc . text
+logInfo :: LogMessage -> Act ()
+logInfo = printDoc . P.logMessage . showLogMessage
 
 getConfig :: Act Config
 getConfig = liftF (LoadConfig id)
@@ -71,3 +74,16 @@ runIO act = do
   (a, config') <- runStateT (interpretStateTIO act) config
   unless (config == config') (saveConfig config')
   return a
+
+data LogMessage = AlreadyRegistered FilePath
+                | NotRegistered FilePath
+                | Registering FilePath
+                | Unregistering FilePath
+                deriving (Eq, Ord, Show)
+
+showLogMessage :: LogMessage -> String
+showLogMessage msg = case msg of
+  AlreadyRegistered path -> "Path [" ++ path ++ "] is already registered."
+  NotRegistered path     -> "Path [" ++ path ++ "] does not appear to be registered."
+  Registering path       -> "Registering [" ++ path ++ "]"
+  Unregistering path     -> "Unregistering [" ++ path ++ "]"
