@@ -11,11 +11,14 @@ import Options.Applicative
 import System.Directory (canonicalizePath)
 import System.FilePath (takeFileName)
 
+-- | Type alias for options passed through to Git
+type GitOpt = String
+
 data Opts = Register [FilePath] [GroupId]
           | Unregister [FilePath]
           | AddToGroup [GroupId] [FilePath]
           | RemoveFromGroup [GroupId] [FilePath]
-          | Status [GroupId]
+          | Status [GroupId] [GitOpt]
           deriving (Eq, Ord, Show)
 
 parseOpts :: Parser Opts
@@ -42,7 +45,8 @@ parseOpts = subparser $
     groupIds = many $ pack <$> strOption (short 'g' <> long "group" <> metavar "GROUP")
     groupId = pack <$> strArgument (metavar "GROUP")
     paths = some $ strArgument (metavar "PATH")
-    statusOpts = Status <$> groupIds
+    statusOpts = Status <$> groupIds <*> gitOpts
+    gitOpts = many (strArgument (metavar "GIT_OPT"))
 
 -- | Entry point for register command
 register :: [GroupId] -> [FilePath] -> Act ()
@@ -99,12 +103,12 @@ removeFromGroup groupIds paths = getConfig >>= forM_ paths . rmGroup
         Nothing -> logInfo $ "Path [" ++ path ++ "] does not appear to be registered."
 
 -- | Entry point for status command
-status :: [GroupId] -> Act ()
-status groupIds = do
+status :: [GroupId] -> [GitOpt] -> Act ()
+status groupIds gitOpts = do
   Config repos <- getConfig
   forM_ repos $ \(Repository p gs) ->
     when (null groupIds || any (`elem` groupIds) gs) $
-      shell p "git" ["status"] >>= printDoc . summary (takeFileName p)
+      shell p "git" ("status" : gitOpts) >>= printDoc . summary (takeFileName p)
 
 main :: IO ()
 main = do
@@ -114,7 +118,7 @@ main = do
     Unregister paths               -> canonicalizeAll paths >>= runIO . unregister
     AddToGroup groupIds paths      -> canonicalizeAll paths >>= runIO . addToGroup groupIds
     RemoveFromGroup groupIds paths -> canonicalizeAll paths >>= runIO . removeFromGroup groupIds
-    Status groupIds                -> runIO $ status groupIds
+    Status groupIds gitOpts        -> runIO $ status groupIds gitOpts
 
   where
     canonicalizeAll = mapM canonicalizePath
