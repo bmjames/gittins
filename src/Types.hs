@@ -3,6 +3,7 @@
 module Types where
 
 import Config
+import Control.Monad (unless)
 import Control.Monad.Free (Free(..), liftF)
 import Control.Monad.State.Lazy (StateT, get, liftIO, put, runStateT)
 import System.IO (hGetContents)
@@ -68,5 +69,5 @@ runIO :: Act a -> IO a
 runIO act = do
   config       <- loadConfig
   (a, config') <- runStateT (interpretStateTIO act) config
-  saveConfig config'
+  unless (config == config') (saveConfig config')
   return a
