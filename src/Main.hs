@@ -19,6 +19,7 @@ data Opts = Register [FilePath] [GroupId]
           | AddToGroup [GroupId] [FilePath]
           | RemoveFromGroup [GroupId] [FilePath]
           | Status [GroupId] [GitOpt]
+          | Pull [GroupId] [GitOpt]
           deriving (Eq, Ord, Show)
 
 parseOpts :: Parser Opts
@@ -36,6 +37,7 @@ parseOpts = subparser $
 
   -- Git commands
   <> command "status" (info statusOpts fullDesc)
+  <> command "pull"   (info pullOpts fullDesc)
 
   where
     registerOpts = Register <$> paths <*> groupIds
@@ -46,6 +48,7 @@ parseOpts = subparser $
     groupId = pack <$> strArgument (metavar "GROUP")
     paths = some $ strArgument (metavar "PATH")
     statusOpts = Status <$> groupIds <*> gitOpts
+    pullOpts = Pull <$> groupIds <*> gitOpts
     gitOpts = many (strArgument (metavar "GIT_OPT"))
 
 -- | Entry point for register command
@@ -110,6 +113,14 @@ status groupIds gitOpts = do
     when (null groupIds || any (`elem` groupIds) gs) $
       shell p "git" ("status" : gitOpts) >>= printDoc . summary (takeFileName p)
 
+-- | Entry point for pull command
+pull :: [GroupId] -> [GitOpt] -> Act ()
+pull groupIds gitOpts = do
+  Config repos <- getConfig
+  forM_ repos $ \(Repository p gs) ->
+    when (null groupIds || any (`elem` groupIds) gs) $
+      shell p "git" ("pull" : gitOpts) >>= printDoc . summary (takeFileName p)
+
 main :: IO ()
 main = do
   opts <- execParser $ info (helper <*> parseOpts) fullDesc
@@ -119,6 +130,7 @@ main = do
     AddToGroup groupIds paths      -> canonicalizeAll paths >>= runIO . addToGroup groupIds
     RemoveFromGroup groupIds paths -> canonicalizeAll paths >>= runIO . removeFromGroup groupIds
     Status groupIds gitOpts        -> runIO $ status groupIds gitOpts
+    Pull groupIds gitOpts          -> runIO $ pull groupIds gitOpts
 
   where
     canonicalizeAll = mapM canonicalizePath
