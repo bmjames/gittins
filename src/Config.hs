@@ -36,9 +36,9 @@ modifyConfig f = loadConfig >>= f >>= saveConfig
 data Config = Config { repositories :: [Repository] }
             deriving (Eq, Ord, Show)
 
-type GroupId = Text
+type GroupId = String
 
-data Repository = Repository { path :: FilePath, groups :: [GroupId] }
+data Repository = Repository { repoPath :: FilePath, repoGroups :: [GroupId] }
                 deriving (Eq, Ord, Show)
 
 configFile :: IO FilePath
@@ -65,7 +65,7 @@ fromIni (Ini repos) =
                                        (foldMap parseGroups $ HM.lookup "group" props)
 
     parseGroups :: Text -> [GroupId]
-    parseGroups = nub . T.words
+    parseGroups = map unpack . nub . T.words
 
 toIni :: Config -> Ini
 toIni (Config repos) = Ini $ fromList (map fromRepository repos)
@@ -76,7 +76,7 @@ toIni (Config repos) = Ini $ fromList (map fromRepository repos)
 
     settings :: Repository -> HashMap Text Text
     settings (Repository _ gs) =
-      let group = if null gs then Nothing else Just ("group", T.unwords $ nub gs)
+      let group = if null gs then Nothing else Just ("group", T.pack $ unwords (nub gs))
       in fromList (catMaybes [group])
 
 modifyRepository :: (Repository -> Maybe Repository) -> Config -> Maybe Config
