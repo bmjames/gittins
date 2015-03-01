@@ -11,6 +11,7 @@ module Config (
   , addToGroups
 ) where
 
+import Control.Applicative ((<|>))
 import Data.Foldable (foldMap)
 import Data.HashMap.Strict (HashMap, empty, foldrWithKey, fromList)
 import Data.Ini (Ini(..), readIniFile, writeIniFile)
@@ -81,8 +82,7 @@ toIni (Config repos) = Ini $ fromList (map fromRepository repos)
 
 modifyRepository :: (Repository -> Maybe Repository) -> Config -> Maybe Config
 modifyRepository f (Config repos) = fmap Config (go repos) where
-  go (r:rs) | Just r' <- f r = Just (r':rs)
-            | otherwise = fmap (r:) (go rs)
+  go (r:rs) = fmap (:rs) (f r) <|> fmap (r:) (go rs)
   go [] = Nothing
 
 addToGroups :: [GroupId] -> FilePath -> Config -> Maybe Config
