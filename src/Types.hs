@@ -46,6 +46,11 @@ shell cwd cmd args = liftF (Shell cp id) where
                      , delegate_ctlc = False
                      }
 
+getReposForGroup :: [GroupId] -> Act [Repository]
+getReposForGroup groupIds = do
+  Config repos <- getConfig
+  return $ filter (\(Repository _ gs) -> null groupIds || any (`elem` groupIds) gs) repos
+
 interpretStateTIO :: Act a -> StateT Config IO a
 interpretStateTIO act = case act of
   Free (Print doc a) -> do

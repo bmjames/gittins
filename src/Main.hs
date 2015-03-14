@@ -125,18 +125,16 @@ list groupIds = do
 -- | Entry point for status command
 status :: [GroupId] -> [GitOpt] -> Act ()
 status groupIds gitOpts = do
-  Config repos <- getConfig
-  forM_ repos $ \repo@(Repository p gs) ->
-    when (null groupIds || any (`elem` groupIds) gs) $
-      git p "status" gitOpts >>= printDoc . P.summary (repoName repo)
+  repos <- getReposForGroup groupIds
+  forM_ repos $ \repo@(Repository p _) ->
+    git p "status" gitOpts >>= printDoc . P.summary (repoName repo)
 
 -- | Entry point for pull command
 pull :: [GroupId] -> [GitOpt] -> Act ()
 pull groupIds gitOpts = do
-  Config repos <- getConfig
-  forM_ repos $ \repo@(Repository p gs) ->
-    when (null groupIds || any (`elem` groupIds) gs) $
-      git p "pull" gitOpts >>= printDoc . P.summary (repoName repo)
+  repos <- getReposForGroup groupIds
+  forM_ repos $ \repo@(Repository p _) ->
+    git p "pull" gitOpts >>= printDoc . P.summary (repoName repo)
 
 -- | Git command
 git :: FilePath -> String -> [GitOpt] -> Act String

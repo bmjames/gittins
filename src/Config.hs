@@ -80,6 +80,9 @@ toIni (Config repos) = Ini $ fromList (map fromRepository repos)
       let group = if null gs then Nothing else Just ("group", T.pack $ unwords (nub gs))
       in fromList (catMaybes [group])
 
+-- | Given a function from 'Repository' to 'Maybe' 'Repository', returns the
+-- first 'Just' result obtained by applying the function to each 'Repository',
+-- or 'Nothing' otherwise.
 modifyRepository :: (Repository -> Maybe Repository) -> Config -> Maybe Config
 modifyRepository f (Config repos) = fmap Config (go repos) where
   go (r:rs) = fmap (:rs) (f r) <|> fmap (r:) (go rs)
