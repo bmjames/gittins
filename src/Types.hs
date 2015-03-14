@@ -54,7 +54,7 @@ getReposForGroup groupIds = do
 interpretStateTIO :: Act a -> StateT Config IO a
 interpretStateTIO act = case act of
   Free (Print doc a) -> do
-    liftIO (putDoc doc)
+    liftIO (putDoc doc >> putStrLn "")
     interpretStateTIO a
 
   Free (LoadConfig f) -> do

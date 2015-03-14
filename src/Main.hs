@@ -63,30 +63,30 @@ completeGroups = Completer $ \prefix -> runIO $ do
 
 -- | Entry point for register command
 register :: [GroupId] -> [FilePath] -> Act ()
-register groupIds paths = getConfig >>= forM_ paths . addRepo
+register groupIds = mapM_ addRepo where
 
-  where
-    addRepo :: Config -> FilePath -> Act ()
-    addRepo (Config repos) p
-      | any ((== p) . repoPath) repos =
-          logInfo (AlreadyRegistered p)
-      | otherwise = do
-          logInfo (Registering p)
-          putConfig $ Config (Repository p groupIds : repos)
+  addRepo :: FilePath -> Act ()
+  addRepo p = do
+    Config repos <- getConfig
+    if any ((== p) . repoPath) repos
+      then logInfo (AlreadyRegistered p)
+      else do
+        logInfo (Registering p)
+        putConfig $ Config (Repository p groupIds : repos)
 
 -- | Entry point for unregister command
 unregister :: [FilePath] -> Act ()
-unregister paths = getConfig >>= forM_ paths . rmRepo
+unregister = mapM_ rmRepo where
 
-  where
-    rmRepo :: Config -> FilePath -> Act ()
-    rmRepo (Config repos) p
-      | all ((/= p) . repoPath) repos =
-          logInfo (NotRegistered p)
-      | otherwise = do
-          logInfo (Unregistering p)
-          let repos' = filter ((/= p) . repoPath) repos
-          putConfig (Config repos')
+ rmRepo :: FilePath -> Act ()
+ rmRepo p = do
+   Config repos <- getConfig
+   if all ((/= p) . repoPath) repos
+     then logInfo (NotRegistered p)
+     else do
+       logInfo (Unregistering p)
+       let repos' = filter ((/= p) . repoPath) repos
+       putConfig (Config repos')
 
 -- | Entry point for add-to-group command
 addToGroup :: [GroupId] -> [FilePath] -> Act ()
