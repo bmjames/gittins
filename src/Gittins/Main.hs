@@ -1,7 +1,7 @@
-module Main where
+module Gittins.Main where
 
-import Config
-import Types
+import Gittins.Config
+import Gittins.Types
 
 import Data.List (isPrefixOf, nub)
 import Data.Foldable (forM_)
@@ -10,7 +10,7 @@ import Options.Applicative.Types (Completer(..))
 import System.Directory (canonicalizePath)
 import System.FilePath (takeFileName)
 
-import qualified Pretty as P
+import qualified Gittins.Pretty as P
 
 -- | Type alias for options passed through to Git
 type GitOpt = String
@@ -143,8 +143,9 @@ git cwd cmd opts = shell cwd "git" (cmd : opts)
 repoName :: Repository -> String
 repoName = takeFileName . repoPath
 
-main :: IO ()
-main = do
+-- | Main entry point
+gittinsMain :: IO ()
+gittinsMain = do
   opts <- execParser $ info (helper <*> parseOpts) fullDesc
   case opts of
     Register paths groupIds        -> canonicalizeAll paths >>= runIO . register groupIds

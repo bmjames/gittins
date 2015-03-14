@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Config (
+module Gittins.Config (
     Config(..)
   , GroupId
   , Repository(..)

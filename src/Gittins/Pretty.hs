@@ -1,4 +1,4 @@
-module Pretty (
+module Gittins.Pretty (
     list
   , logMessage
   , summary

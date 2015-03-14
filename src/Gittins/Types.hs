@@ -1,9 +1,9 @@
 {-# LANGUAGE DeriveFunctor #-}
 
-module Types where
+module Gittins.Types where
 
-import Config
-import Pretty
+import Gittins.Config
+import Gittins.Pretty
 
 import Control.Monad (unless)
 import Control.Monad.Free (Free(..), liftF)
@@ -11,7 +11,7 @@ import Control.Monad.State.Lazy (StateT, get, liftIO, put, runStateT)
 import System.IO (hGetContents)
 import System.Process (CreateProcess(..), CmdSpec(RawCommand), StdStream(..), createProcess)
 
-import qualified Pretty as P
+import qualified Gittins.Pretty as P
 
 data Act' a = Print Doc a
             | LoadConfig (Config -> a)

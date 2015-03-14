@@ -12,6 +12,7 @@ let
     process
     text
     unordered-containers
+    hspec
   ]);
 in
   stdenv.mkDerivation {
