@@ -4,6 +4,7 @@ module Gittins.Config (
     Config(..)
   , GroupId
   , Repository(..)
+  , repoName
   , loadConfig
   , saveConfig
   , modifyConfig
@@ -19,10 +20,11 @@ import Data.List (nub)
 import Data.Maybe (catMaybes)
 import Data.Text (Text, pack, unpack)
 import System.Directory (doesFileExist, getHomeDirectory)
-import System.FilePath ((</>))
+import System.FilePath ((</>), takeFileName)
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
+
 
 loadConfig :: IO Config
 loadConfig = fmap fromIni loadIni
@@ -41,6 +43,10 @@ type GroupId = String
 
 data Repository = Repository { repoPath :: FilePath, repoGroups :: [GroupId] }
                 deriving (Eq, Ord, Show)
+
+-- | Short name for a repository (just the last part of the path)
+repoName :: Repository -> String
+repoName = takeFileName . repoPath
 
 configFile :: IO FilePath
 configFile = do homeDir <- getHomeDirectory

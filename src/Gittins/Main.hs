@@ -8,9 +8,9 @@ import Data.Foldable (forM_)
 import Options.Applicative
 import Options.Applicative.Types (Completer(..))
 import System.Directory (canonicalizePath)
-import System.FilePath (takeFileName)
 
 import qualified Gittins.Pretty as P
+
 
 -- | Type alias for options passed through to Git
 type GitOpt = String
@@ -33,7 +33,7 @@ parseOpts = subparser $
   <> command "unregister" (info unregisterOpts
                                 (progDesc "Unregister one ore more repositories"))
   <> command "add-to-group" (info addToGroupOpts
-                                  (progDesc "Add one ore more repositories to a group"))
+                                  (progDesc "Add one or more repositories to a group"))
   <> command "remove-from-group" (info removeFromGroupOpts
                                        (progDesc "Remove one or more repositories from a group"))
   <> command "list" (info listOpts (progDesc "List registered repositories"))
@@ -68,9 +68,9 @@ register groupIds = mapM_ addRepo where
   addRepo p = do
     Config repos <- getConfig
     if any ((== p) . repoPath) repos
-      then logInfo (AlreadyRegistered p)
+      then putLog (AlreadyRegistered p)
       else do
-        logInfo (Registering p)
+        putLog (Registering p)
         putConfig $ Config (Repository p groupIds : repos)
 
 -- | Entry point for unregister command
@@ -81,9 +81,9 @@ unregister = mapM_ rmRepo where
  rmRepo p = do
    Config repos <- getConfig
    if all ((/= p) . repoPath) repos
-     then logInfo (NotRegistered p)
+     then putLog (NotRegistered p)
      else do
-       logInfo (Unregistering p)
+       putLog (Unregistering p)
        let repos' = filter ((/= p) . repoPath) repos
        putConfig (Config repos')
 
@@ -96,7 +96,7 @@ addToGroup groupIds = mapM_ addGroup where
     config <- getConfig
     case addToGroups groupIds path config of
       Just c  -> putConfig c
-      Nothing -> logInfo (NotRegistered path)
+      Nothing -> putLog (NotRegistered path)
 
 -- | Entry point for remove-from-group command
 removeFromGroup :: [GroupId] -> [FilePath] -> Act ()
@@ -111,36 +111,34 @@ removeFromGroup groupIds paths = getConfig >>= forM_ paths . rmGroup
                else Nothing) config
       case config' of
         Just c  -> putConfig c
-        Nothing -> logInfo (NotRegistered path)
+        Nothing -> putLog (NotRegistered path)
 
 -- | Entry point for list command
 list :: [GroupId] -> Act ()
 list groupIds = do
   Config repos <- getConfig
   let repos' = filter (\(Repository _ gs) -> null groupIds || any (`elem` groupIds) gs) repos
-  printDoc $ P.list (map repoName repos')
+  putLog (RepositoriesSummary repos') -- P.list (map repoName repos')
 
 -- | Entry point for status command
 status :: [GroupId] -> [GitOpt] -> Act ()
 status groupIds gitOpts = do
   repos <- getReposForGroup groupIds
   forM_ repos $ \repo@(Repository p _) ->
-    git p "status" gitOpts >>= printDoc . P.summary (repoName repo)
+    do out <- git p "status" gitOpts
+       putLog $ StatusSummary [(repo, out)] -- P.summary (repoName repo)
 
 -- | Entry point for pull command
 pull :: [GroupId] -> [GitOpt] -> Act ()
 pull groupIds gitOpts = do
   repos <- getReposForGroup groupIds
   forM_ repos $ \repo@(Repository p _) ->
-    git p "pull" gitOpts >>= printDoc . P.summary (repoName repo)
+    do out <- git p "pull" gitOpts
+       putLog $ PullSummary [(repo, out)] -- P.summary (repoName repo)
 
 -- | Git command
 git :: FilePath -> String -> [GitOpt] -> Act String
 git cwd cmd opts = shell cwd "git" (cmd : opts)
-
--- | Short name for a repository (just the last part of the path)
-repoName :: Repository -> String
-repoName = takeFileName . repoPath
 
 -- | Main entry point
 gittinsMain :: IO ()

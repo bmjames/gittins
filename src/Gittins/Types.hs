@@ -13,7 +13,7 @@ import System.Process (CreateProcess(..), CmdSpec(RawCommand), StdStream(..), cr
 
 import qualified Gittins.Pretty as P
 
-data Act' a = Print Doc a
+data Act' a = Log LogMessage a
             | LoadConfig (Config -> a)
             | SaveConfig Config a
             | Shell CreateProcess (String -> a)
@@ -21,11 +21,8 @@ data Act' a = Print Doc a
 
 type Act a = Free Act' a
 
-printDoc :: Doc -> Act ()
-printDoc doc = liftF (Print doc ())
-
-logInfo :: LogMessage -> Act ()
-logInfo = printDoc . P.logMessage . showLogMessage
+putLog :: LogMessage -> Act ()
+putLog msg = liftF (Log msg ())
 
 getConfig :: Act Config
 getConfig = liftF (LoadConfig id)
@@ -53,8 +50,8 @@ getReposForGroup groupIds = do
 
 interpretStateTIO :: Act a -> StateT Config IO a
 interpretStateTIO act = case act of
-  Free (Print doc a) -> do
-    liftIO (putDoc doc >> putStrLn "")
+  Free (Log msg a) -> do
+    liftIO (putDoc (prettyLog msg) >> putStrLn "")
     interpretStateTIO a
 
   Free (LoadConfig f) -> do
@@ -84,11 +81,17 @@ data LogMessage = AlreadyRegistered FilePath
                 | NotRegistered FilePath
                 | Registering FilePath
                 | Unregistering FilePath
+                | RepositoriesSummary [Repository]
+                | StatusSummary [(Repository, String)]
+                | PullSummary [(Repository, String)]
                 deriving (Eq, Ord, Show)
 
-showLogMessage :: LogMessage -> String
-showLogMessage msg = case msg of
-  AlreadyRegistered path -> "Path [" ++ path ++ "] is already registered."
-  NotRegistered path     -> "Path [" ++ path ++ "] does not appear to be registered."
-  Registering path       -> "Registering [" ++ path ++ "]"
-  Unregistering path     -> "Unregistering [" ++ path ++ "]"
+prettyLog :: LogMessage -> Doc
+prettyLog msg = case msg of
+  AlreadyRegistered path -> logMessage $ "Path [" ++ path ++ "] is already registered."
+  NotRegistered path     -> logMessage $ "Path [" ++ path ++ "] does not appear to be registered."
+  Registering path       -> logMessage $ "Registering [" ++ path ++ "]"
+  Unregistering path     -> logMessage $ "Unregistering [" ++ path ++ "]"
+  StatusSummary rs       -> vcat $ map (\(r, out) -> summary (repoName r) out) rs
+  PullSummary rs         -> vcat $ map (\(r, out) -> summary (repoName r) out) rs
+  RepositoriesSummary rs -> list $ map repoName rs

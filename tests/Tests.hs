@@ -29,7 +29,7 @@ initConfig = Config [Repository "foo" [], Repository "bar" []]
 
 interpret :: Act a -> Config -> Config
 interpret act = case act of
-  Free (Print _ a)      -> interpret a
+  Free (Log _ a)        -> interpret a
   Free (LoadConfig f)   -> \c -> interpret (f c) c
   Free (SaveConfig c a) -> \_ -> interpret a c
   Free (Shell _ f)      -> interpret (f "")
