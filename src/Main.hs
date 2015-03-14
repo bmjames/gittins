@@ -51,7 +51,7 @@ parseOpts = subparser $
     listOpts = List <$> groupIds
     groupIds = many $ strOption (short 'g' <> long "group" <> metavar "GROUP"
                                  <> completer completeGroups)
-    paths = some $ strArgument (metavar "PATH")
+    paths = some (strArgument (metavar "PATH")) <|> pure ["."]
     statusOpts = Status <$> groupIds <*> gitOpts
     pullOpts = Pull <$> groupIds <*> gitOpts
     gitOpts = many (strArgument (metavar "GIT_OPT"))
