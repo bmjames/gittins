@@ -3,7 +3,6 @@ module Main where
 import Config
 import Types
 
-import Control.Monad (when)
 import Data.List (isPrefixOf, nub)
 import Data.Foldable (forM_)
 import Options.Applicative
