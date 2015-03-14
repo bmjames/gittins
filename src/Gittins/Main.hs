@@ -89,15 +89,14 @@ unregister = mapM_ rmRepo where
 
 -- | Entry point for add-to-group command
 addToGroup :: [GroupId] -> [FilePath] -> Act ()
-addToGroup groupIds paths = getConfig >>= forM_ paths . addGroup
+addToGroup groupIds = mapM_ addGroup where
 
-  where
-    addGroup :: Config -> FilePath -> Act ()
-    addGroup config path = do
-      let config' = addToGroups groupIds path config
-      case config' of
-        Just c  -> putConfig c
-        Nothing -> logInfo (NotRegistered path)
+  addGroup :: FilePath -> Act ()
+  addGroup path = do
+    config <- getConfig
+    case addToGroups groupIds path config of
+      Just c  -> putConfig c
+      Nothing -> logInfo (NotRegistered path)
 
 -- | Entry point for remove-from-group command
 removeFromGroup :: [GroupId] -> [FilePath] -> Act ()

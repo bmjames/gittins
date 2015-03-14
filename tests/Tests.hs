@@ -11,16 +11,21 @@ main :: IO ()
 main = hspec $ do
   describe "register" $
     it "adds paths to the config" $
-      interpret (register [] ["foo", "bar", "baz"]) emptyConfig `shouldBe`
-        Config [Repository "baz" [], Repository "bar" [], Repository "foo" []]
+      interpret (register [] ["baz", "qux"]) initConfig `shouldBe`
+        Config [Repository p [] | p <- ["qux", "baz", "foo", "bar"]]
 
   describe "unregister" $
     it "removes paths from the config" $
-      interpret (unregister ["bar"]) (Config [Repository "foo" [], Repository "bar" []])
-        `shouldBe` Config [Repository "foo" []]
+      interpret (unregister ["bar"]) initConfig `shouldBe`
+        Config [Repository "foo" []]
 
-emptyConfig :: Config
-emptyConfig = Config []
+  describe "add-to-group" $
+    it "adds repositories to a group" $
+      interpret (addToGroup ["my-group"] ["foo", "bar"]) initConfig `shouldBe`
+        Config [Repository p ["my-group"] | p <- ["foo", "bar"]]
+
+initConfig :: Config
+initConfig = Config [Repository "foo" [], Repository "bar" []]
 
 interpret :: Act a -> Config -> Config
 interpret act = case act of
