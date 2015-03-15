@@ -15,7 +15,7 @@ import System.Process (CreateProcess(..), CmdSpec(RawCommand), StdStream(..), cr
 data Act' a = Log LogMessage a
             | LoadConfig (Config -> a)
             | SaveConfig Config a
-            | Shell CreateProcess (String -> a)
+            | Process CreateProcess (String -> a)
             deriving Functor
 
 type Act a = Free Act' a
@@ -29,8 +29,8 @@ getConfig = liftF (LoadConfig id)
 putConfig :: Config -> Act ()
 putConfig config = liftF (SaveConfig config ())
 
-shell :: FilePath -> FilePath -> [String] -> Act String
-shell cwd cmd args = liftF (Shell cp id) where
+process :: FilePath -> FilePath -> [String] -> Act String
+process cwd cmd args = liftF (Process cp id) where
   cp = CreateProcess { cmdspec = RawCommand cmd args
                      , cwd = Just cwd
                      , env = Nothing
@@ -61,7 +61,7 @@ interpretStateTIO act = case act of
     put c
     interpretStateTIO a
 
-  Free (Shell cp f) -> do
+  Free (Process cp f) -> do
     out <- liftIO $ do
       (_, Just hOut, _, _) <- liftIO (createProcess cp)
       hGetContents hOut

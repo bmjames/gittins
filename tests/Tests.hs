@@ -38,5 +38,5 @@ interpret act = case act of
   Free (Log _ a)        -> interpret a
   Free (LoadConfig f)   -> \c -> interpret (f c) c
   Free (SaveConfig c a) -> \_ -> interpret a c
-  Free (Shell _ f)      -> interpret (f "")
+  Free (Process _ f)      -> interpret (f "")
   Pure _ -> id

@@ -136,7 +136,7 @@ pull groupIds gitOpts = do
 
 -- | Git command
 git :: FilePath -> String -> [GitOpt] -> Act String
-git cwd cmd opts = shell cwd "git" (cmd : opts)
+git cwd cmd opts = process cwd "git" (cmd : opts)
 
 -- | Main entry point
 gittinsMain :: IO ()
