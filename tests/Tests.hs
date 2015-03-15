@@ -24,6 +24,12 @@ main = hspec $ do
       interpret (addToGroup ["my-group"] ["foo", "bar"]) initConfig `shouldBe`
         Config [Repository p ["my-group"] | p <- ["foo", "bar"]]
 
+  describe "remove-from-group" $
+    it "removes repositories from a group" $
+      interpret (removeFromGroup ["my-group"] ["foo", "bar"])
+                (Config [Repository p ["my-group"] | p <- ["foo", "bar"]])
+        `shouldBe` initConfig
+
 initConfig :: Config
 initConfig = Config [Repository "foo" [], Repository "bar" []]
 

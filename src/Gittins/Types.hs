@@ -11,7 +11,6 @@ import Control.Monad.State.Lazy (StateT, get, liftIO, put, runStateT)
 import System.IO (hGetContents)
 import System.Process (CreateProcess(..), CmdSpec(RawCommand), StdStream(..), createProcess)
 
-import qualified Gittins.Pretty as P
 
 data Act' a = Log LogMessage a
             | LoadConfig (Config -> a)

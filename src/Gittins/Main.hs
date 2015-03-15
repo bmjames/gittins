@@ -9,8 +9,6 @@ import Options.Applicative
 import Options.Applicative.Types (Completer(..))
 import System.Directory (canonicalizePath)
 
-import qualified Gittins.Pretty as P
-
 
 -- | Type alias for options passed through to Git
 type GitOpt = String
@@ -100,18 +98,18 @@ addToGroup groupIds = mapM_ addGroup where
 
 -- | Entry point for remove-from-group command
 removeFromGroup :: [GroupId] -> [FilePath] -> Act ()
-removeFromGroup groupIds paths = getConfig >>= forM_ paths . rmGroup
+removeFromGroup groupIds = mapM_ rmGroup where
 
-  where
-    rmGroup :: Config -> FilePath -> Act ()
-    rmGroup config path = do
-      let config' = modifyRepository (\(Repository p gs) ->
-            if p == path
-               then Just $ Repository p (filter (not . flip elem groupIds) gs)
-               else Nothing) config
-      case config' of
-        Just c  -> putConfig c
-        Nothing -> putLog (NotRegistered path)
+  rmGroup :: FilePath -> Act ()
+  rmGroup path = do
+    config <- getConfig
+    let config' = modifyRepository (\(Repository p gs) ->
+          if p == path
+             then Just $ Repository p (filter (not . flip elem groupIds) gs)
+             else Nothing) config
+    case config' of
+      Just c  -> putConfig c
+      Nothing -> putLog (NotRegistered path)
 
 -- | Entry point for list command
 list :: [GroupId] -> Act ()
