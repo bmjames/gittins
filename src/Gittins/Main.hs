@@ -116,7 +116,7 @@ list :: [GroupId] -> Act ()
 list groupIds = do
   Config repos <- getConfig
   let repos' = filter (\(Repository _ gs) -> null groupIds || any (`elem` groupIds) gs) repos
-  putLog (RepositoriesSummary repos') -- P.list (map repoName repos')
+  putLog (RepositoriesSummary repos')
 
 -- | Entry point for status command
 status :: [GroupId] -> [GitOpt] -> Act ()
@@ -124,7 +124,7 @@ status groupIds gitOpts = do
   repos <- getReposForGroup groupIds
   forM_ repos $ \repo@(Repository p _) ->
     do out <- git p "status" gitOpts
-       putLog $ StatusSummary [(repo, out)] -- P.summary (repoName repo)
+       putLog $ StatusSummary [(repo, out)]
 
 -- | Entry point for pull command
 pull :: [GroupId] -> [GitOpt] -> Act ()
@@ -132,7 +132,7 @@ pull groupIds gitOpts = do
   repos <- getReposForGroup groupIds
   forM_ repos $ \repo@(Repository p _) ->
     do out <- git p "pull" gitOpts
-       putLog $ PullSummary [(repo, out)] -- P.summary (repoName repo)
+       putLog $ PullSummary [(repo, out)]
 
 -- | Git command
 git :: FilePath -> String -> [GitOpt] -> Act String
