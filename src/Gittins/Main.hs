@@ -130,7 +130,7 @@ status groupIds gitOpts = do
 pull :: [GroupId] -> [GitOpt] -> Act ()
 pull groupIds gitOpts = do
   repos <- getReposForGroup groupIds
-  forM_ repos $ \repo@(Repository p _) ->
+  concurrentSeq_ $ flip map repos $ \repo@(Repository p _) ->
     do out <- git p "pull" gitOpts
        putLog $ PullSummary [(repo, out)]
 

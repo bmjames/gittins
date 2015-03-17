@@ -7,6 +7,7 @@ let
     filepath
     free
     ini
+    monad-par
     mtl
     optparse-applicative
     process
