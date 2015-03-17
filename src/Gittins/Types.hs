@@ -61,8 +61,11 @@ concurrently a1 a2 = liftF (Concurrently a1 a2 (,))
 concurrentSeq :: NFData a => [Act a] -> Act [a]
 concurrentSeq = foldr (fmap (fmap (uncurry (:))) . concurrently) (return [])
 
-concurrentSeq_ :: NFData a => [Act a] -> Act ()
+concurrentSeq_ :: [Act ()] -> Act ()
 concurrentSeq_ = foldr (fmap void . concurrently) (return ())
+
+concurrentFor_ :: [a] -> (a -> Act ()) -> Act ()
+concurrentFor_ as f = concurrentSeq_ $ map f as
 
 getReposForGroup :: [GroupId] -> Act [Repository]
 getReposForGroup groupIds = do
@@ -70,11 +73,11 @@ getReposForGroup groupIds = do
   return $ filter (\(Repository _ gs) -> null groupIds || any (`elem` groupIds) gs) repos
 
 interpretParIO :: Config -> Act a -> ParIO a
-interpretParIO config act' = do
+interpretParIO config act = do
   consoleLock <- liftIO $ newMVar ()
   let
     go :: Act a -> ParIO a
-    go act = case act of
+    go act' = case act' of
 
       Free (Log msg a) -> do
         liftIO $ do
@@ -105,7 +108,7 @@ interpretParIO config act' = do
         go (f a1' a2')
 
       Pure a -> return a
-    in go act'
+    in go act
 
 runIO :: Act a -> IO a
 runIO act = do
