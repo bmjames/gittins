@@ -99,13 +99,11 @@ interpretParIO config act = do
         go config' (f out)
 
       Free (Concurrently a1 a2 f) -> do
-        i1 <- Par.new
-        i2 <- Par.new
-        Par.fork $ go config' a1 >>= Par.put i1 . snd
-        Par.fork $ go config' a2 >>= Par.put i2
+        ivar <- Par.new
+        Par.fork $ go config' a1 >>= Par.put ivar . snd
+        (c, a2') <- go config' a2
         -- If concurrent threads write config, the last write wins
-        a1' <- Par.get i1
-        (c, a2') <- Par.get i2
+        a1' <- Par.get ivar
         go c (f a1' a2')
 
       Pure a -> return (config', a)

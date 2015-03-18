@@ -13,7 +13,6 @@ module Gittins.Config (
 ) where
 
 import Control.Applicative ((<|>))
-import Control.Monad.Par (NFData)
 import Data.Foldable (foldMap)
 import Data.HashMap.Strict (HashMap, empty, foldrWithKey, fromList)
 import Data.Ini (Ini(..), readIniFile, writeIniFile)
@@ -39,8 +38,6 @@ modifyConfig f = loadConfig >>= f >>= saveConfig
 
 data Config = Config { repositories :: [Repository] }
             deriving (Eq, Ord, Show)
-
-instance NFData Config
 
 type GroupId = String
 
