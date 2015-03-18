@@ -89,7 +89,6 @@ interpretParIO config act = do
 
       Free (LoadConfig f) -> go config' (f config')
 
-      -- TODO avoid/handle concurrent config saves?
       Free (SaveConfig c a) -> go c a
 
       Free (Process cp f) -> do
