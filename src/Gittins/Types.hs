@@ -72,12 +72,12 @@ getReposForGroup groupIds = do
   Config repos <- getConfig
   return $ filter (\(Repository _ gs) -> null groupIds || any (`elem` groupIds) gs) repos
 
-interpretParIO :: Config -> Act a -> ParIO a
+interpretParIO :: Config -> Act a -> ParIO (Config, a)
 interpretParIO config act = do
   consoleLock <- liftIO $ newMVar ()
   let
-    go :: Act a -> ParIO a
-    go act' = case act' of
+    go :: Config -> Act a -> ParIO (Config, a)
+    go config' act' = case act' of
 
       Free (Log msg a) -> do
         liftIO $ do
@@ -85,35 +85,38 @@ interpretParIO config act = do
           putDoc (prettyLog msg)
           putStrLn ""
           putMVar consoleLock ()
-        go a
+        go config' a
 
-      Free (LoadConfig f) -> go (f config)
+      Free (LoadConfig f) -> go config' (f config')
 
       -- TODO avoid/handle concurrent config saves?
-      Free (SaveConfig _ a) -> go a
+      Free (SaveConfig c a) -> go c a
 
       Free (Process cp f) -> do
         out <- liftIO $ do
           (_, Just hOut, _, _) <- createProcess cp
           hGetContents hOut
-        go (f out)
+        go config' (f out)
 
       Free (Concurrently a1 a2 f) -> do
         i1 <- Par.new
         i2 <- Par.new
-        Par.fork $ go a1 >>= Par.put i1
-        Par.fork $ go a2 >>= Par.put i2
+        Par.fork $ go config' a1 >>= Par.put i1 . snd
+        Par.fork $ go config' a2 >>= Par.put i2
+        -- If concurrent threads write config, the last write wins
         a1' <- Par.get i1
-        a2' <- Par.get i2
-        go (f a1' a2')
+        (c, a2') <- Par.get i2
+        go c (f a1' a2')
 
-      Pure a -> return a
-    in go act
+      Pure a -> return (config', a)
+    in go config act
 
 runIO :: Act a -> IO a
 runIO act = do
   config <- loadConfig
-  runParIO $ interpretParIO config act
+  (config', a) <- runParIO $ interpretParIO config act
+  saveConfig config'
+  return a
 
 data LogMessage = AlreadyRegistered FilePath
                 | NotRegistered FilePath
