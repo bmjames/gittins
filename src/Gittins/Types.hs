@@ -101,7 +101,7 @@ interpretParIO config act = do
         ivar <- Par.new
         Par.fork $ go config' a1 >>= Par.put ivar . snd
         (c, a2') <- go config' a2
-        -- If concurrent threads write config, the last write wins
+        -- If concurrent threads write config, the second thread wins
         a1' <- Par.get ivar
         go c (f a1' a2')
 
