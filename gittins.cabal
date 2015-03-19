@@ -27,12 +27,14 @@ library
                      , filepath ==1.3.*
                      , free ==4.10.*
                      , ini ==0.3.*
+                     , monad-control
                      , monad-par ==0.3.*
                      , mtl ==2.1.*
                      , optparse-applicative ==0.11.*
                      , process ==1.2.*
                      , text ==1.2.*
                      , transformers
+                     , transformers-base
                      , unordered-containers ==0.2.*
   hs-source-dirs:      src
   default-language:    Haskell2010

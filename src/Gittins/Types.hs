@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs, MultiParamTypeClasses, TypeFamilies #-}
 
 module Gittins.Types where
 
@@ -7,10 +7,14 @@ import Gittins.Pretty
 
 import Control.Concurrent.MVar (newMVar, putMVar, takeMVar)
 import Control.Monad (void)
+import Control.Monad.Base (MonadBase(..))
 import Control.Monad.Free (Free(..), liftF)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Par (NFData)
 import Control.Monad.Par.IO (ParIO, runParIO)
+import Control.Monad.Trans.Control (MonadBaseControl(..), liftBaseDiscard)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.State (StateT, get, put, runStateT)
 import System.IO (hGetContents)
 import System.Process (CreateProcess(..), CmdSpec(RawCommand), StdStream(..), createProcess)
 
@@ -72,12 +76,19 @@ getReposForGroup groupIds = do
   Config repos <- getConfig
   return $ filter (\(Repository _ gs) -> null groupIds || any (`elem` groupIds) gs) repos
 
-interpretParIO :: Config -> Act a -> ParIO (Config, a)
-interpretParIO config act = do
+instance MonadBase ParIO ParIO
+
+instance MonadBaseControl ParIO ParIO where
+  type StM ParIO a = a
+  liftBaseWith f = f id
+  restoreM = return
+
+interpretParIO :: Act a -> StateT Config ParIO a
+interpretParIO act = do
   consoleLock <- liftIO $ newMVar ()
   let
-    go :: Config -> Act a -> ParIO (Config, a)
-    go config' act' = case act' of
+    go :: Act a -> StateT Config ParIO a
+    go act' = case act' of
 
       Free (Log msg a) -> do
         liftIO $ do
@@ -85,33 +96,35 @@ interpretParIO config act = do
           putDoc (prettyLog msg)
           putStrLn ""
           putMVar consoleLock ()
-        go config' a
+        go a
 
-      Free (LoadConfig f) -> go config' (f config')
+      Free (LoadConfig f) -> go . f =<< get
 
-      Free (SaveConfig c a) -> go c a
+      Free (SaveConfig c a) -> do
+        put c
+        go a
 
       Free (Process cp f) -> do
         out <- liftIO $ do
           (_, Just hOut, _, _) <- createProcess cp
           hGetContents hOut
-        go config' (f out)
+        go (f out)
 
       Free (Concurrently a1 a2 f) -> do
-        ivar <- Par.new
-        Par.fork $ go config' a1 >>= Par.put ivar . snd
-        (c, a2') <- go config' a2
-        -- If concurrent threads write config, the second thread wins
-        a1' <- Par.get ivar
-        go c (f a1' a2')
+        ivar <- lift Par.new
+        liftBaseDiscard Par.fork $ go a1 >>= lift . Par.put ivar
+        a2' <- go a2
+        -- If concurrent threads write config, the first thread wins
+        a1' <- lift $ Par.get ivar
+        go (f a1' a2')
 
-      Pure a -> return (config', a)
-    in go config act
+      Pure a -> return a
+    in go act
 
 runIO :: Act a -> IO a
 runIO act = do
   config <- loadConfig
-  (config', a) <- runParIO $ interpretParIO config act
+  (a, config') <- runParIO $ runStateT (interpretParIO act) config
   saveConfig config'
   return a
 

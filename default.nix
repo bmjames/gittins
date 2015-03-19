@@ -7,11 +7,14 @@ let
     filepath
     free
     ini
+    monad-control
     monad-par
     mtl
     optparse-applicative
     process
     text
+    transformers
+    transformers-base
     unordered-containers
     hspec
   ]);
