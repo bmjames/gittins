@@ -24,7 +24,7 @@ data Act' a where
   Log :: LogMessage -> a -> Act' a
   LoadConfig :: (Config -> a) -> Act' a
   SaveConfig :: Config -> a -> Act' a
-  Process :: CreateProcess -> (String -> a) -> Act' a
+  Process :: CreateProcess -> (String -> String -> a) -> Act' a
   Concurrently :: (NFData b, NFData c) => Act b -> Act c -> (b -> c -> a) -> Act' a
 
 instance Functor Act' where
@@ -32,7 +32,7 @@ instance Functor Act' where
     Log msg a1 -> Log msg (f a1)
     LoadConfig g -> LoadConfig (f . g)
     SaveConfig c a1 -> SaveConfig c (f a1)
-    Process cp g -> Process cp (f . g)
+    Process cp g -> Process cp (fmap f . g)
     Concurrently b1 b2 g -> Concurrently b1 b2 (fmap f . g)
 
 type Act a = Free Act' a
@@ -46,14 +46,14 @@ getConfig = liftF (LoadConfig id)
 putConfig :: Config -> Act ()
 putConfig config = liftF (SaveConfig config ())
 
-process :: FilePath -> FilePath -> [String] -> Act String
-process cwd cmd args = liftF (Process cp id) where
+process :: FilePath -> FilePath -> [String] -> Act (String, String)
+process cwd cmd args = liftF (Process cp (,)) where
   cp = CreateProcess { cmdspec = RawCommand cmd args
                      , cwd = Just cwd
                      , env = Nothing
                      , std_in = Inherit
                      , std_out = CreatePipe
-                     , std_err = Inherit
+                     , std_err = CreatePipe
                      , close_fds = False
                      , create_group = False
                      , delegate_ctlc = False
@@ -105,10 +105,12 @@ interpretParIO act = do
         go a
 
       Free (Process cp f) -> do
-        out <- liftIO $ do
-          (_, Just hOut, _, _) <- createProcess cp
-          hGetContents hOut
-        go (f out)
+        (out', err') <- liftIO $ do
+          (_, Just hOut, Just hErr, _) <- createProcess cp
+          out <- hGetContents hOut
+          err <- hGetContents hErr
+          return (out, err)
+        go (f out' err')
 
       Free (Concurrently a1 a2 f) -> do
         ivar <- lift Par.new
@@ -133,8 +135,9 @@ data LogMessage = AlreadyRegistered FilePath
                 | Registering FilePath
                 | Unregistering FilePath
                 | RepositoriesSummary [Repository]
-                | StatusSummary [(Repository, String)]
-                | PullSummary [(Repository, String)]
+                | StatusSummary [(Repository, String, String)]
+                | PullSummary [(Repository, String, String)]
+                | ProcessError String
                 deriving (Eq, Ord, Show)
 
 prettyLog :: LogMessage -> Doc
@@ -143,6 +146,7 @@ prettyLog msg = case msg of
   NotRegistered path     -> logMessage $ "Path [" ++ path ++ "] does not appear to be registered."
   Registering path       -> logMessage $ "Registering [" ++ path ++ "]"
   Unregistering path     -> logMessage $ "Unregistering [" ++ path ++ "]"
-  StatusSummary rs       -> vcat $ map (\(r, out) -> summary (repoName r) out) rs
-  PullSummary rs         -> vcat $ map (\(r, out) -> summary (repoName r) out) rs
+  StatusSummary rs       -> vcat $ map (\(r, out, err) -> summary (repoName r) out err) rs
+  PullSummary rs         -> vcat $ map (\(r, out, err) -> summary (repoName r) out err) rs
   RepositoriesSummary rs -> list $ map repoName rs
+  ProcessError e         -> logMessage e

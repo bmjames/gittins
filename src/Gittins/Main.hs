@@ -4,7 +4,6 @@ import Gittins.Config
 import Gittins.Types
 
 import Data.List (isPrefixOf, nub)
-import Data.Foldable (forM_)
 import Options.Applicative
 import Options.Applicative.Types (Completer(..))
 import System.Directory (canonicalizePath)
@@ -123,19 +122,19 @@ status :: [GroupId] -> [GitOpt] -> Act ()
 status groupIds gitOpts = do
   repos <- getReposForGroup groupIds
   concurrentFor_ repos $ \repo@(Repository p _) ->
-    do out <- git p "status" gitOpts
-       putLog $ StatusSummary [(repo, out)]
+    do (out, err) <- git p "status" gitOpts
+       putLog $ StatusSummary [(repo, out, err)]
 
 -- | Entry point for pull command
 pull :: [GroupId] -> [GitOpt] -> Act ()
 pull groupIds gitOpts = do
   repos <- getReposForGroup groupIds
   concurrentFor_ repos $ \repo@(Repository p _) ->
-    do out <- git p "pull" gitOpts
-       putLog $ PullSummary [(repo, out)]
+    do (out, err) <- git p "pull" gitOpts
+       putLog $ PullSummary [(repo, out, err)]
 
 -- | Git command
-git :: FilePath -> String -> [GitOpt] -> Act String
+git :: FilePath -> String -> [GitOpt] -> Act (String, String)
 git cwd cmd opts = process cwd "git" (cmd : opts)
 
 -- | Main entry point

@@ -19,8 +19,8 @@ logMessage = text
 list :: [String] -> Doc
 list = vcat . map text
 
-summary :: String -> String -> Doc
-summary header body =
-      line
-  <>  cyan (text header)
-  <$> text body
+summary :: String -> String -> String -> Doc
+summary header body err =
+     cyan (text header)
+  <> (if null err then empty else line <> text err)
+  <> (if null body then empty else line <> text body)
