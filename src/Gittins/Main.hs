@@ -122,19 +122,19 @@ status :: [GroupId] -> [GitOpt] -> Act ()
 status groupIds gitOpts = do
   repos <- getReposForGroup groupIds
   concurrentFor_ repos $ \repo@(Repository p _) ->
-    do (out, err) <- git p "status" gitOpts
-       putLog $ StatusSummary [(repo, out, err)]
+    do result <- git p "status" gitOpts
+       putLog $ StatusSummary [(repo, result)]
 
 -- | Entry point for pull command
 pull :: [GroupId] -> [GitOpt] -> Act ()
 pull groupIds gitOpts = do
   repos <- getReposForGroup groupIds
   concurrentFor_ repos $ \repo@(Repository p _) ->
-    do (out, err) <- git p "pull" gitOpts
-       putLog $ PullSummary [(repo, out, err)]
+    do result <- git p "pull" gitOpts
+       putLog $ PullSummary [(repo, result)]
 
 -- | Git command
-git :: FilePath -> String -> [GitOpt] -> Act (String, String)
+git :: FilePath -> String -> [GitOpt] -> Act ProcessResult
 git cwd cmd opts = process cwd "git" (cmd : opts)
 
 -- | Main entry point
