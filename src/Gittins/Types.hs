@@ -4,6 +4,7 @@ module Gittins.Types where
 
 import Gittins.Config
 import Gittins.Pretty
+import Gittins.Process
 
 import Control.Concurrent.MVar (newMVar, putMVar, takeMVar)
 import Control.Monad (void)
@@ -15,10 +16,6 @@ import Control.Monad.Par.IO (ParIO, runParIO)
 import Control.Monad.Trans.Control (MonadBaseControl(..), liftBaseDiscard)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.State (StateT, get, put, runStateT)
-import System.Exit (ExitCode)
-import System.IO (hGetContents)
-import System.Process (CreateProcess(..), CmdSpec(RawCommand), StdStream(..),
-                       createProcess, waitForProcess)
 
 import qualified Control.Monad.Par.Class as Par
 
@@ -97,37 +94,20 @@ interpretParIO act = do
         go a
 
       Free (Process wd cmd args f) -> do
-        result <- liftIO $ do
-          (_, Just hOut, Just hErr, ph) <- createProcess (mkProcess wd cmd args)
-          out <- hGetContents hOut
-          err <- hGetContents hErr
-          exitCode <- waitForProcess ph
-          return $ ProcessResult exitCode out err
+        result <- liftIO $ processResult wd cmd args
         go (f result)
 
+      -- If concurrent threads write config, the second thread wins
       Free (Concurrently a1 a2 f) -> do
         ivar <- lift Par.new
         liftBaseDiscard Par.fork $ go a1 >>= lift . Par.put ivar
         a2' <- go a2
-        -- If concurrent threads write config, the first thread wins
         a1' <- lift $ Par.get ivar
         go (f a1' a2')
 
       Pure a -> return a
     in go act
 
-mkProcess :: FilePath -> FilePath -> [String] -> CreateProcess
-mkProcess workingDir cmd args =
-  CreateProcess { cmdspec = RawCommand cmd args
-                , cwd = Just workingDir
-                , env = Nothing
-                , std_in = Inherit
-                , std_out = CreatePipe
-                , std_err = CreatePipe
-                , close_fds = False
-                , create_group = False
-                , delegate_ctlc = False
-                }
 
 runIO :: Act a -> IO a
 runIO act = do
@@ -135,9 +115,6 @@ runIO act = do
   (a, config') <- runParIO $ runStateT (interpretParIO act) config
   saveConfig config'
   return a
-
-data ProcessResult = ProcessResult ExitCode String String
-                   deriving (Eq, Ord, Show)
 
 data LogMessage = AlreadyRegistered FilePath
                 | NotRegistered FilePath

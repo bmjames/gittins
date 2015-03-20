@@ -19,6 +19,7 @@ library
   exposed-modules:     Gittins.Config
                      , Gittins.Main
                      , Gittins.Pretty
+                     , Gittins.Process
                      , Gittins.Types
   build-depends:       base >=4.7 && <4.8
                      , abstract-par

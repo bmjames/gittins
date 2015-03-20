@@ -5,6 +5,7 @@ import Gittins.Main
 import Gittins.Types
 
 import Control.Monad.Free (Free(..))
+import System.Exit (ExitCode(..))
 import Test.Hspec
 
 main :: IO ()
@@ -38,6 +39,6 @@ interpret act = case act of
   Free (Log _ a)        -> interpret a
   Free (LoadConfig f)   -> \c -> interpret (f c) c
   Free (SaveConfig c a) -> \_ -> interpret a c
-  Free (Process _ f)    -> interpret (f "")
+  Free (Process _ _ _ f)    -> interpret (f $ ProcessResult ExitSuccess "" "")
   Free (Concurrently _ a2 _) -> interpret a2
   Pure _ -> id

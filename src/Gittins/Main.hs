@@ -1,6 +1,7 @@
 module Gittins.Main where
 
 import Gittins.Config
+import Gittins.Process
 import Gittins.Types
 
 import Data.List (isPrefixOf, nub)
