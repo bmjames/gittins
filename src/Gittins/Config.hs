@@ -7,7 +7,6 @@ module Gittins.Config (
   , loadConfig
   , saveConfig
   , mkRepoName
-  , modifyConfig
   , modifyRepository
   , addToGroups
 ) where
@@ -32,9 +31,6 @@ loadConfig = fmap fromIni loadIni
 saveConfig :: Config -> IO ()
 saveConfig config = do iniPath <- configFile
                        writeIniFile iniPath (toIni config)
-
-modifyConfig :: (Config -> IO Config) -> IO ()
-modifyConfig f = loadConfig >>= f >>= saveConfig
 
 data Config = Config { repositories :: [Repository] }
             deriving (Eq, Ord, Show)
