@@ -9,11 +9,12 @@ import Options.Applicative
 import Options.Applicative.Types (Completer(..))
 import System.Directory (canonicalizePath)
 
-
 -- | Type alias for options passed through to Git
 type GitOpt = String
 
-data Opts = Register [FilePath] [GroupId]
+type Force = Bool
+
+data Opts = Register [FilePath] [GroupId] Force
           | Unregister [FilePath]
           | List [GroupId]
           | AddToGroup [GroupId] [FilePath]
@@ -41,7 +42,7 @@ parseOpts = subparser $
   <> command "pull"   (info pullOpts fullDesc)
 
   where
-    registerOpts = Register <$> paths <*> groupIds
+    registerOpts = Register <$> paths <*> groupIds <*> force
     unregisterOpts = Unregister <$> paths
     addToGroupOpts = AddToGroup <$> groupIds <*> paths
     removeFromGroupOpts = RemoveFromGroup <$> groupIds <*> paths
@@ -52,6 +53,7 @@ parseOpts = subparser $
     statusOpts = Status <$> groupIds <*> gitOpts
     pullOpts = Pull <$> groupIds <*> gitOpts
     gitOpts = many (strArgument (metavar "GIT_OPT"))
+    force = switch (short 'f' <> long "force")
 
 completeGroups :: Completer
 completeGroups = Completer $ \prefix -> runIO $ do
@@ -59,8 +61,8 @@ completeGroups = Completer $ \prefix -> runIO $ do
   return $ nub $ filter (prefix `isPrefixOf`) (concatMap repoGroups repos)
 
 -- | Entry point for register command
-register :: [GroupId] -> [FilePath] -> Act ()
-register groupIds = mapM_ addRepo where
+register :: [GroupId] -> [FilePath] -> Force -> Act ()
+register groupIds paths force = mapM_ addRepo paths where
 
   addRepo :: FilePath -> Act ()
   addRepo p = do
@@ -68,8 +70,11 @@ register groupIds = mapM_ addRepo where
     if any ((== p) . repoPath) repos
       then putLog (AlreadyRegistered p)
       else do
-        putLog (Registering p)
-        putConfig $ Config (Repository p groupIds : repos)
+        shouldRegister <- isWorkingTree p
+        if force || shouldRegister
+          then do putLog (Registering p)
+                  putConfig $ Config (Repository p groupIds : repos)
+          else putLog (NotAGitRepository p)
 
 -- | Entry point for unregister command
 unregister :: [FilePath] -> Act ()
@@ -143,13 +148,14 @@ gittinsMain :: IO ()
 gittinsMain = do
   opts <- execParser $ info (helper <*> parseOpts) fullDesc
   case opts of
-    Register paths groupIds        -> canonicalizeAll paths >>= runIO . register groupIds
-    Unregister paths               -> canonicalizeAll paths >>= runIO . unregister
-    AddToGroup groupIds paths      -> canonicalizeAll paths >>= runIO . addToGroup groupIds
-    RemoveFromGroup groupIds paths -> canonicalizeAll paths >>= runIO . removeFromGroup groupIds
+    Register paths groupIds force  -> do paths' <- canonicalize paths
+                                         runIO $ register groupIds paths' force
+    Unregister paths               -> canonicalize paths >>= runIO . unregister
+    AddToGroup groupIds paths      -> canonicalize paths >>= runIO . addToGroup groupIds
+    RemoveFromGroup groupIds paths -> canonicalize paths >>= runIO . removeFromGroup groupIds
     List groupIds                  -> runIO $ list groupIds
     Status groupIds gitOpts        -> runIO $ status groupIds gitOpts
     Pull groupIds gitOpts          -> runIO $ pull groupIds gitOpts
 
   where
-    canonicalizeAll = mapM canonicalizePath
+    canonicalize = mapM canonicalizePath

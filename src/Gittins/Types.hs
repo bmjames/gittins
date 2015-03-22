@@ -16,6 +16,8 @@ import Control.Monad.Par.IO (ParIO, runParIO)
 import Control.Monad.Trans.Control (MonadBaseControl(..), liftBaseDiscard)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.State (StateT, get, put, runStateT)
+import System.Directory (doesDirectoryExist)
+import System.FilePath ((</>))
 
 import qualified Control.Monad.Par.Class as Par
 
@@ -24,6 +26,7 @@ data Act' a where
   LoadConfig :: (Config -> a) -> Act' a
   SaveConfig :: Config -> a -> Act' a
   Process :: FilePath -> FilePath -> [String] -> (ProcessResult -> a) -> Act' a
+  IsWorkingTree :: FilePath -> (Bool -> a) -> Act' a
   Concurrently :: (NFData b, NFData c) => Act b -> Act c -> (b -> c -> a) -> Act' a
 
 instance Functor Act' where
@@ -32,6 +35,7 @@ instance Functor Act' where
     LoadConfig g -> LoadConfig (f . g)
     SaveConfig c a1 -> SaveConfig c (f a1)
     Process wd cmd args g -> Process wd cmd args (f . g)
+    IsWorkingTree p g -> IsWorkingTree p (f . g)
     Concurrently b1 b2 g -> Concurrently b1 b2 (fmap f . g)
 
 type Act a = Free Act' a
@@ -47,6 +51,11 @@ putConfig config = liftF (SaveConfig config ())
 
 process :: FilePath -> FilePath -> [String] -> Act ProcessResult
 process wd cmd args = liftF (Process wd cmd args id)
+
+-- | Determine whether the given file path appears to refer to
+--   the root of a valid Git working tree.
+isWorkingTree :: FilePath -> Act Bool
+isWorkingTree path = liftF (IsWorkingTree path id)
 
 concurrently :: (NFData a, NFData b) => Act a -> Act b -> Act (a, b)
 concurrently a1 a2 = liftF (Concurrently a1 a2 (,))
@@ -97,6 +106,10 @@ interpretParIO act = do
         result <- liftIO $ processResult wd cmd args
         go (f result)
 
+      Free (IsWorkingTree path f) -> do
+        isDir <- liftIO $ doesDirectoryExist (path </> ".git")
+        go (f isDir)
+
       -- If concurrent threads write config, the second thread wins
       Free (Concurrently a1 a2 f) -> do
         ivar <- lift Par.new
@@ -118,6 +131,7 @@ runIO act = do
 
 data LogMessage = AlreadyRegistered FilePath
                 | NotRegistered FilePath
+                | NotAGitRepository FilePath
                 | Registering FilePath
                 | Unregistering FilePath
                 | RepositoriesSummary [Repository]
@@ -130,6 +144,9 @@ prettyLog :: LogMessage -> Doc
 prettyLog msg = case msg of
   AlreadyRegistered path -> logMessage $ "Path [" ++ path ++ "] is already registered."
   NotRegistered path     -> logMessage $ "Path [" ++ path ++ "] does not appear to be registered."
+  NotAGitRepository path -> logMessage $
+    "Path [" ++ path ++ "] does not appear to be a Git working tree and so has not been registered."
+    ++ "\nRun with -f|--force to register it anyway."
   Registering path       -> logMessage $ "Registering [" ++ path ++ "]"
   Unregistering path     -> logMessage $ "Unregistering [" ++ path ++ "]"
   PullSummary rs         -> vcat $ map (\(r, ProcessResult _ out err) -> summary (repoName r) out err) rs
