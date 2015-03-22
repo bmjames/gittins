@@ -1,13 +1,14 @@
 module Gittins.Main where
 
 import Gittins.Config
+import Gittins.FilePath
+import Gittins.Interpreter
 import Gittins.Process
 import Gittins.Types
 
 import Data.List (isPrefixOf, nub)
 import Options.Applicative
 import Options.Applicative.Types (Completer(..))
-import System.Directory (canonicalizePath)
 
 -- | Type alias for options passed through to Git
 type GitOpt = String
@@ -67,13 +68,14 @@ register groupIds paths force = mapM_ addRepo paths where
   addRepo :: FilePath -> Act ()
   addRepo p = do
     Config repos <- getConfig
+    let name = mkRepoName p
     if any ((== p) . repoPath) repos
       then putLog (AlreadyRegistered p)
       else do
         shouldRegister <- isWorkingTree p
         if force || shouldRegister
           then do putLog (Registering p)
-                  putConfig $ Config (Repository p groupIds : repos)
+                  putConfig $ Config (Repository name p groupIds : repos)
           else putLog (NotAGitRepository p)
 
 -- | Entry point for unregister command
@@ -108,9 +110,9 @@ removeFromGroup groupIds = mapM_ rmGroup where
   rmGroup :: FilePath -> Act ()
   rmGroup path = do
     config <- getConfig
-    let config' = modifyRepository (\(Repository p gs) ->
-          if p == path
-             then Just $ Repository p (filter (not . flip elem groupIds) gs)
+    let config' = modifyRepository (\(Repository n p gs) ->
+          if p == path || n == path
+             then Just $ Repository n p (filter (not . flip elem groupIds) gs)
              else Nothing) config
     case config' of
       Just c  -> putConfig c
@@ -120,14 +122,14 @@ removeFromGroup groupIds = mapM_ rmGroup where
 list :: [GroupId] -> Act ()
 list groupIds = do
   Config repos <- getConfig
-  let repos' = filter (\(Repository _ gs) -> null groupIds || any (`elem` groupIds) gs) repos
+  let repos' = filter (\(Repository _ _ gs) -> null groupIds || any (`elem` groupIds) gs) repos
   putLog (RepositoriesSummary repos')
 
 -- | Entry point for status command
 status :: [GroupId] -> [GitOpt] -> Act ()
 status groupIds gitOpts = do
   repos <- getReposForGroup groupIds
-  concurrentFor_ repos $ \repo@(Repository p _) ->
+  concurrentFor_ repos $ \repo@(Repository _ p _) ->
     do result <- git p "status" gitOpts
        putLog $ StatusSummary [(repo, result)]
 
@@ -135,7 +137,7 @@ status groupIds gitOpts = do
 pull :: [GroupId] -> [GitOpt] -> Act ()
 pull groupIds gitOpts = do
   repos <- getReposForGroup groupIds
-  concurrentFor_ repos $ \repo@(Repository p _) ->
+  concurrentFor_ repos $ \repo@(Repository _ p _) ->
     do result <- git p "pull" gitOpts
        putLog $ PullSummary [(repo, result)]
 
@@ -158,4 +160,4 @@ gittinsMain = do
     Pull groupIds gitOpts          -> runIO $ pull groupIds gitOpts
 
   where
-    canonicalize = mapM canonicalizePath
+    canonicalize = mapM safeCanonicalize

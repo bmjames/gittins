@@ -17,6 +17,8 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Gittins.Config
+                     , Gittins.FilePath
+                     , Gittins.Interpreter
                      , Gittins.Main
                      , Gittins.Pretty
                      , Gittins.Process

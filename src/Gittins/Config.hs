@@ -4,20 +4,20 @@ module Gittins.Config (
     Config(..)
   , GroupId
   , Repository(..)
-  , repoName
   , loadConfig
   , saveConfig
+  , mkRepoName
   , modifyConfig
   , modifyRepository
   , addToGroups
 ) where
 
-import Control.Applicative ((<|>))
+import Control.Applicative ((<|>), (<$>))
 import Data.Foldable (foldMap)
 import Data.HashMap.Strict (HashMap, empty, foldrWithKey, fromList)
 import Data.Ini (Ini(..), readIniFile, writeIniFile)
 import Data.List (nub)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text (Text, pack, unpack)
 import System.Directory (doesFileExist, getHomeDirectory)
 import System.FilePath ((</>), takeFileName)
@@ -41,16 +41,19 @@ data Config = Config { repositories :: [Repository] }
 
 type GroupId = String
 
-data Repository = Repository { repoPath :: FilePath, repoGroups :: [GroupId] }
+data Repository = Repository
+                { repoName :: String
+                , repoPath :: FilePath
+                , repoGroups :: [GroupId]
+                }
                 deriving (Eq, Ord, Show)
-
--- | Short name for a repository (just the last part of the path)
-repoName :: Repository -> String
-repoName = takeFileName . repoPath
 
 configFile :: IO FilePath
 configFile = do homeDir <- getHomeDirectory
                 return (homeDir </> ".gittins")
+
+mkRepoName :: FilePath -> String
+mkRepoName = takeFileName
 
 loadIni :: IO Ini
 loadIni = do iniPath <- configFile
@@ -68,8 +71,10 @@ fromIni (Ini repos) =
 
   where
     repository :: Text -> HashMap Text Text -> Repository
-    repository path props = Repository (unpack path)
-                                       (foldMap parseGroups $ HM.lookup "group" props)
+    repository path props = Repository
+      (fromMaybe (mkRepoName $ unpack path) $ unpack <$> HM.lookup "name" props)
+      (unpack path)
+      (foldMap parseGroups $ HM.lookup "group" props)
 
     parseGroups :: Text -> [GroupId]
     parseGroups = map unpack . nub . T.words
@@ -79,12 +84,12 @@ toIni (Config repos) = Ini $ fromList (map fromRepository repos)
 
   where
     fromRepository :: Repository -> (Text, HashMap Text Text)
-    fromRepository repo@(Repository p _) = (pack p, settings repo)
+    fromRepository repo@(Repository _ p _) = (pack p, settings repo)
 
     settings :: Repository -> HashMap Text Text
-    settings (Repository _ gs) =
+    settings (Repository name _ gs) =
       let group = if null gs then Nothing else Just ("group", T.pack $ unwords (nub gs))
-      in fromList (catMaybes [group])
+      in fromList (("name", pack name) : catMaybes [group])
 
 -- | Given a function from 'Repository' to 'Maybe' 'Repository', returns the
 -- first 'Just' result obtained by applying the function to each 'Repository',
@@ -95,5 +100,5 @@ modifyRepository f (Config repos) = fmap Config (go repos) where
   go [] = Nothing
 
 addToGroups :: [GroupId] -> FilePath -> Config -> Maybe Config
-addToGroups groupIds path = modifyRepository $ \(Repository p gs) ->
-  if p == path then Just $ Repository p (nub $ groupIds ++ gs) else Nothing
+addToGroups groupIds path = modifyRepository $ \(Repository n p gs) ->
+  if p == path then Just $ Repository n p (nub $ groupIds ++ gs) else Nothing
