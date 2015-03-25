@@ -26,7 +26,7 @@ summary header body err =
   <> (if null body then empty else line <> text body)
 
 summariseRepo :: Repository -> Doc
-summariseRepo (Repository n p _) = fillBreak 10 (cyan $ text n) <> brackets (text p)
+summariseRepo (Repository n p _) = fillBreak 15 (cyan $ text n) <> brackets (text p)
 
 prettyLog :: LogMessage -> Doc
 prettyLog msg = case msg of
