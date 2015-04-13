@@ -39,5 +39,6 @@ prettyLog msg = case msg of
   Unregistering path     -> logMessage $ "Unregistering [" ++ path ++ "]"
   PullSummary rs         -> vcat $ map (\(r, ProcessResult _ out err) -> summary (repoName r) out err) rs
   StatusSummary rs       -> vcat $ map (\(r, ProcessResult _ out err) -> summary (repoName r) out err) rs
+  DiffSummary rs         -> vcat $ map (\(r, ProcessResult _ out err) -> summary (repoName r) out err) rs
   RepositoriesSummary rs -> vcat $ map summariseRepo rs
   ProcessError e         -> logMessage e

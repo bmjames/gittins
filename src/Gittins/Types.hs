@@ -70,5 +70,6 @@ data LogMessage = AlreadyRegistered FilePath
                 | RepositoriesSummary [Repository]
                 | PullSummary [(Repository, ProcessResult)]
                 | StatusSummary [(Repository, ProcessResult)]
+                | DiffSummary [(Repository, ProcessResult)]
                 | ProcessError String
                 deriving (Eq, Ord, Show)

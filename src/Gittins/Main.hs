@@ -22,6 +22,7 @@ data Opts = Register [FilePath] [GroupId] Force
           | RemoveFromGroup [GroupId] [FilePath]
           | Status [GroupId] [GitOpt]
           | Pull [GroupId] [GitOpt]
+          | Diff [GroupId] [GitOpt]
           deriving (Eq, Ord, Show)
 
 parseOpts :: Parser Opts
@@ -41,6 +42,7 @@ parseOpts = subparser $
   -- Git commands
   <> command "status" (info statusOpts fullDesc)
   <> command "pull"   (info pullOpts fullDesc)
+  <> command "diff"   (info diffOpts fullDesc)
 
   where
     registerOpts = Register <$> paths <*> groupIds <*> force
@@ -53,6 +55,7 @@ parseOpts = subparser $
     paths = some (strArgument (metavar "PATH")) <|> pure ["."]
     statusOpts = Status <$> groupIds <*> gitOpts
     pullOpts = Pull <$> groupIds <*> gitOpts
+    diffOpts = Diff <$> groupIds <*> gitOpts
     gitOpts = many (strArgument (metavar "GIT_OPT"))
     force = switch (short 'f' <> long "force")
 
@@ -127,19 +130,22 @@ list groupIds = do
 
 -- | Entry point for status command
 status :: [GroupId] -> [GitOpt] -> Act ()
-status groupIds gitOpts = do
-  repos <- getReposForGroup groupIds
-  concurrentFor_ repos $ \repo@(Repository _ p _) ->
-    do result <- git p "status" gitOpts
-       putLog $ StatusSummary [(repo, result)]
+status = gitCommand "status" (putLog . StatusSummary . return)
 
 -- | Entry point for pull command
 pull :: [GroupId] -> [GitOpt] -> Act ()
-pull groupIds gitOpts = do
+pull = gitCommand "pull" (putLog . PullSummary . return)
+
+-- | Entry point for diff
+diff :: [GroupId] -> [GitOpt] -> Act ()
+diff = gitCommand "diff" (putLog . DiffSummary . return)
+
+gitCommand :: String -> ((Repository, ProcessResult) -> Act ()) -> [GroupId] -> [GitOpt] -> Act ()
+gitCommand cmd f groupIds gitOpts = do
   repos <- getReposForGroup groupIds
   concurrentFor_ repos $ \repo@(Repository _ p _) ->
-    do result <- git p "pull" gitOpts
-       putLog $ PullSummary [(repo, result)]
+    do result <- git p cmd gitOpts
+       f (repo, result)
 
 -- | Git command
 git :: FilePath -> String -> [GitOpt] -> Act ProcessResult
@@ -158,6 +164,7 @@ gittinsMain = do
     List groupIds                  -> runIO $ list groupIds
     Status groupIds gitOpts        -> runIO $ status groupIds gitOpts
     Pull groupIds gitOpts          -> runIO $ pull groupIds gitOpts
+    Diff groupIds gitOpts          -> runIO $ diff groupIds gitOpts
 
   where
     canonicalize = mapM safeCanonicalize
