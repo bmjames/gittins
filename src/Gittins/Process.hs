@@ -1,5 +1,6 @@
 module Gittins.Process where
 
+import Control.Monad.Par (NFData)
 import System.Exit (ExitCode)
 import System.IO (hGetContents)
 import System.Process (CreateProcess(..), CmdSpec(RawCommand), StdStream(..),
@@ -7,6 +8,8 @@ import System.Process (CreateProcess(..), CmdSpec(RawCommand), StdStream(..),
 
 data ProcessResult = ProcessResult ExitCode String String
                    deriving (Eq, Ord, Show)
+
+instance NFData ProcessResult
 
 processResult :: FilePath -> FilePath -> [String] -> IO ProcessResult
 processResult workingDir cmd args = do

@@ -6,9 +6,11 @@ import Gittins.Interpreter
 import Gittins.Process
 import Gittins.Types
 
+import Data.Either (partitionEithers)
 import Data.List (isPrefixOf, nub)
 import Options.Applicative
 import Options.Applicative.Types (Completer(..))
+import System.Exit (ExitCode(..))
 
 -- | Type alias for options passed through to Git
 type GitOpt = String
@@ -130,22 +132,41 @@ list groupIds = do
 
 -- | Entry point for status command
 status :: [GroupId] -> [GitOpt] -> Act ()
-status = gitCommand "status" (putLog . StatusSummary . return)
+status = gitCommand "status"
 
 -- | Entry point for pull command
 pull :: [GroupId] -> [GitOpt] -> Act ()
-pull = gitCommand "pull" (putLog . PullSummary . return)
+pull groupIds gitOpts = do
+  repos <- getReposForGroup groupIds
+  outputs <- concurrentFor repos $ \repo@(Repository _ path _) ->
+               do result <- git path "pull" gitOpts
+                  putLog (GitOutput repo result)
+                  return (repo, result)
+  putLog (pullSummary outputs)
+
+  where
+    pullSummary = uncurry PullSummary
+                . partitionEithers
+                . map (uncurry toEither)
+                . filter (not . isUpToDate . snd)
+
+    isUpToDate (ProcessResult ExitSuccess "Already up-to-date.\n" _) = True
+    isUpToDate _ = False
+
+    toEither repo r@(ProcessResult exit _ _) =
+      case exit of ExitSuccess   -> Right repo
+                   ExitFailure _ -> Left repo
 
 -- | Entry point for diff
 diff :: [GroupId] -> [GitOpt] -> Act ()
-diff = gitCommand "diff" (putLog . DiffSummary . return)
+diff = gitCommand "diff"
 
-gitCommand :: String -> ((Repository, ProcessResult) -> Act ()) -> [GroupId] -> [GitOpt] -> Act ()
-gitCommand cmd f groupIds gitOpts = do
+gitCommand :: String -> [GroupId] -> [GitOpt] -> Act ()
+gitCommand cmd groupIds gitOpts = do
   repos <- getReposForGroup groupIds
   concurrentFor_ repos $ \repo@(Repository _ p _) ->
     do result <- git p cmd gitOpts
-       f (repo, result)
+       putLog (GitOutput repo result)
 
 -- | Git command
 git :: FilePath -> String -> [GitOpt] -> Act ProcessResult

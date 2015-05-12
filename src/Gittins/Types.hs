@@ -54,6 +54,9 @@ concurrentSeq = foldr (fmap (fmap (uncurry (:))) . concurrently) (return [])
 concurrentSeq_ :: [Act ()] -> Act ()
 concurrentSeq_ = foldr (fmap void . concurrently) (return ())
 
+concurrentFor :: NFData b => [a] -> (a -> Act b) -> Act [b]
+concurrentFor as f = concurrentSeq $ map f as
+
 concurrentFor_ :: [a] -> (a -> Act ()) -> Act ()
 concurrentFor_ as f = concurrentSeq_ $ map f as
 
@@ -68,7 +71,8 @@ data LogMessage = AlreadyRegistered FilePath
                 | Registering FilePath
                 | Unregistering FilePath
                 | RepositoriesSummary [Repository]
-                | PullSummary [(Repository, ProcessResult)]
+                | GitOutput Repository ProcessResult
+                | PullSummary [Repository] [Repository]
                 | StatusSummary [(Repository, ProcessResult)]
                 | DiffSummary [(Repository, ProcessResult)]
                 | ProcessError String

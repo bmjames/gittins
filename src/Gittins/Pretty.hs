@@ -1,6 +1,5 @@
 module Gittins.Pretty (
     list
-  , logMessage
   , prettyLog
   , summary
 ) where
@@ -9,11 +8,8 @@ import Gittins.Config
 import Gittins.Process
 import Gittins.Types
 
+import Data.List (intercalate)
 import Text.PrettyPrint.ANSI.Leijen hiding (list)
-
--- | Simple one-line log message
-logMessage :: String -> Doc
-logMessage = text
 
 -- | Show a list of items
 list :: [String] -> Doc
@@ -30,15 +26,17 @@ summariseRepo (Repository n p _) = fillBreak 15 (cyan $ text n) <> brackets (tex
 
 prettyLog :: LogMessage -> Doc
 prettyLog msg = case msg of
-  AlreadyRegistered path -> logMessage $ "Path [" ++ path ++ "] is already registered."
-  NotRegistered path     -> logMessage $ "Path [" ++ path ++ "] does not appear to be registered."
-  NotAGitRepository path -> logMessage $
+  AlreadyRegistered path -> text $ "Path [" ++ path ++ "] is already registered."
+  NotRegistered path     -> text $ "Path [" ++ path ++ "] does not appear to be registered."
+  NotAGitRepository path -> text $
     "Path [" ++ path ++ "] does not appear to be a Git working tree and so has not been registered."
     ++ "\nRun with -f|--force to register it anyway."
   Registering path       -> text "Registering " <> brackets (text path)
-  Unregistering path     -> logMessage $ "Unregistering [" ++ path ++ "]"
-  PullSummary rs         -> vcat $ map (\(r, ProcessResult _ out err) -> summary (repoName r) out err) rs
-  StatusSummary rs       -> vcat $ map (\(r, ProcessResult _ out err) -> summary (repoName r) out err) rs
-  DiffSummary rs         -> vcat $ map (\(r, ProcessResult _ out err) -> summary (repoName r) out err) rs
+  Unregistering path     -> text $ "Unregistering [" ++ path ++ "]"
+  GitOutput repo output  -> let ProcessResult _ out err = output
+                            in summary (repoName repo) out err
+  PullSummary unsuccessful successful ->
+    let repoList = intercalate "," $ map repoName successful
+    in text $ show (length repoList) ++ " repositories updated (" ++ repoList ++ ")."
   RepositoriesSummary rs -> vcat $ map summariseRepo rs
-  ProcessError e         -> logMessage e
+  ProcessError e         -> text e
