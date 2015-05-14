@@ -36,7 +36,9 @@ prettyLog msg = case msg of
   GitOutput repo output  -> let ProcessResult _ out err = output
                             in summary (repoName repo) out err
   PullSummary unsuccessful successful ->
-    let repoList = intercalate "," $ map repoName successful
-    in text $ show (length repoList) ++ " repositories updated (" ++ repoList ++ ")."
+    let repoList = case successful of
+                        [] -> ""
+                        rs -> " (" ++ intercalate ", " (map repoName rs) ++ ")"
+    in text $ show (length successful) ++ " repositories updated" ++ repoList ++ "."
   RepositoriesSummary rs -> vcat $ map summariseRepo rs
   ProcessError e         -> text e
