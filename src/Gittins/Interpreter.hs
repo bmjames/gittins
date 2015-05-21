@@ -22,7 +22,8 @@ import Text.PrettyPrint.ANSI.Leijen (putDoc)
 import qualified Control.Monad.Par.Class as Par
 
 
-instance MonadBase ParIO ParIO
+instance MonadBase ParIO ParIO where
+  liftBase = id
 
 instance MonadBaseControl ParIO ParIO where
   type StM ParIO a = a
