@@ -31,15 +31,15 @@ parseOpts :: Parser Opts
 parseOpts = subparser $
 
   -- Manage repositories and groups
-     command "register" (info registerOpts
-                              (progDesc "Register one or more repositories"))
+     command "register"   (info registerOpts
+                                (progDesc "Register one or more repositories"))
   <> command "unregister" (info unregisterOpts
                                 (progDesc "Unregister one ore more repositories"))
-  <> command "add-to-group" (info addToGroupOpts
-                                  (progDesc "Add one or more repositories to a group"))
-  <> command "remove-from-group" (info removeFromGroupOpts
-                                       (progDesc "Remove one or more repositories from a group"))
-  <> command "list" (info listOpts (progDesc "List registered repositories"))
+  <> command "add-group"  (info addToGroupOpts
+                                (progDesc "Add one or more repositories to a group"))
+  <> command "rm-group"   (info removeFromGroupOpts
+                                 (progDesc "Remove one or more repositories from a group"))
+  <> command "list"       (info listOpts (progDesc "List registered repositories"))
 
   -- Git commands
   <> command "status" (info statusOpts fullDesc)
