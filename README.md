@@ -8,7 +8,7 @@ Building Gittins requires [Cabal][1]. Running it requires [Git][2].
 
 ## Usage
 
-Gittins for the impatient: `gittins --help`, `gittins <command>
+Gittins for the impatient: `gittins --help`, `gittins <command> --help`
 
 Gittins for the patient is not written yet.
 
