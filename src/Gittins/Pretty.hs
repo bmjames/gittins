@@ -1,6 +1,5 @@
 module Gittins.Pretty (
-    list
-  , prettyLog
+    prettyLog
   , summary
 ) where
 
@@ -25,7 +24,7 @@ summariseRepo :: Repository -> Doc
 summariseRepo (Repository n p _) = fillBreak 15 (cyan $ text n) <> brackets (text p)
 
 prettyLog :: LogMessage -> Doc
-prettyLog msg = (<> linebreak) $ case msg of
+prettyLog msg = (<> line) $ case msg of
   AlreadyRegistered path -> text $ "Path [" ++ path ++ "] is already registered."
   NotRegistered path     -> text $ "Path [" ++ path ++ "] does not appear to be registered."
   NotAGitRepository path -> text $
@@ -36,9 +35,24 @@ prettyLog msg = (<> linebreak) $ case msg of
   GitOutput repo output  -> let ProcessResult _ out err = output
                             in summary (repoName repo) out err
   PullSummary unsuccessful successful ->
-    let repoList = case successful of
-                        [] -> ""
-                        rs -> " (" ++ intercalate ", " (map repoName rs) ++ ")"
-    in text $ show (length successful) ++ " repositories updated" ++ repoList ++ "."
+    let listRepos rs = case rs of
+                        [] -> Nothing
+                        _  -> Just $ list' $ map (text . repoName) rs
+    in int (length successful) <+> text "repositories updated" <+?> listRepos successful <> dot <$?>
+       fmap (\s -> int (length unsuccessful) <+> text "repositories could not be updated" <+> s <> dot)
+            (listRepos unsuccessful)
   RepositoriesSummary rs -> vcat $ map summariseRepo rs
   ProcessError e         -> text e
+
+list' :: [Doc] -> Doc
+list' = encloseSep lparen rparen comma
+
+infix 7 <+?>
+(<+?>) :: Doc -> Maybe Doc -> Doc
+l <+?> Just r = l <+> r
+l <+?> Nothing = l
+
+infix 7 <$?>
+(<$?>) :: Doc -> Maybe Doc -> Doc
+l <$?> Just r = l <$> r
+l <$?> Nothing = l
