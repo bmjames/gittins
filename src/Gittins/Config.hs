@@ -2,6 +2,7 @@
 
 module Gittins.Config (
     Config(..)
+  , RuntimeConfig(..)
   , GroupId
   , Repository(..)
   , loadConfig
@@ -12,7 +13,6 @@ module Gittins.Config (
 ) where
 
 import Control.Applicative ((<|>), (<$>))
-import Control.Monad.Par (NFData)
 import Data.Foldable (foldMap)
 import Data.HashMap.Strict (HashMap, empty, foldrWithKey, fromList)
 import Data.Ini (Ini(..), readIniFile, writeIniFile)
@@ -25,6 +25,8 @@ import System.FilePath ((</>), takeFileName)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 
+type Workers = Int
+data RuntimeConfig = RuntimeConfig Workers
 
 loadConfig :: IO Config
 loadConfig = fmap fromIni loadIni
@@ -44,8 +46,6 @@ data Repository = Repository
                 , repoGroups :: [GroupId]
                 }
                 deriving (Eq, Ord, Show)
-
-instance NFData Repository
 
 configFile :: IO FilePath
 configFile = do homeDir <- getHomeDirectory

@@ -17,18 +17,20 @@ type GitOpt = String
 
 type Force = Bool
 
-data Opts = Register [FilePath] [GroupId] Force
-          | Unregister [FilePath]
-          | List [GroupId]
-          | AddToGroup [GroupId] [FilePath]
-          | RemoveFromGroup [GroupId] [FilePath]
-          | Status [GroupId] [GitOpt]
-          | Pull [GroupId] [GitOpt]
-          | Diff [GroupId] [GitOpt]
-          deriving (Eq, Ord, Show)
+data Opts = Opts RuntimeConfig Command
+
+data Command = Register [FilePath] [GroupId] Force
+             | Unregister [FilePath]
+             | List [GroupId]
+             | AddToGroup [GroupId] [FilePath]
+             | RemoveFromGroup [GroupId] [FilePath]
+             | Status [GroupId] [GitOpt]
+             | Pull [GroupId] [GitOpt]
+             | Diff [GroupId] [GitOpt]
+             deriving (Eq, Ord, Show)
 
 parseOpts :: Parser Opts
-parseOpts = subparser $
+parseOpts = Opts <$> workerOpts <*> (subparser $
 
   -- Manage repositories and groups
      command "register"   (info registerOpts
@@ -44,7 +46,7 @@ parseOpts = subparser $
   -- Git commands
   <> command "status" (info statusOpts fullDesc)
   <> command "pull"   (info pullOpts fullDesc)
-  <> command "diff"   (info diffOpts fullDesc)
+  <> command "diff"   (info diffOpts fullDesc))
 
   where
     registerOpts = Register <$> paths <*> groupIds <*> force
@@ -60,11 +62,17 @@ parseOpts = subparser $
     diffOpts = Diff <$> groupIds <*> gitOpts
     gitOpts = many (strArgument (metavar "GIT_OPT"))
     force = switch (short 'f' <> long "force")
+    workerOpts = RuntimeConfig <$>
+                 (option auto ( short 'j'
+                             <> metavar "CONCURRENCY"
+                             <> help "Max number of Git processes to run concurrently" ) <|> pure 1)
 
 completeGroups :: Completer
-completeGroups = Completer $ \prefix -> runIO $ do
+completeGroups = Completer $ \prefix -> runIO runtimeConfig $ do
   Config repos <- getConfig
   return $ nub $ filter (prefix `isPrefixOf`) (concatMap repoGroups repos)
+
+  where runtimeConfig = RuntimeConfig 1
 
 -- | Entry point for register command
 register :: [GroupId] -> [FilePath] -> Force -> Act ()
@@ -175,17 +183,18 @@ git cwd cmd opts = process cwd "git" (cmd : opts)
 -- | Main entry point
 gittinsMain :: IO ()
 gittinsMain = do
-  opts <- execParser $ info (helper <*> parseOpts) fullDesc
-  case opts of
+  Opts runtimeConfig cmd <- execParser $ info (helper <*> parseOpts) fullDesc
+  let run = runIO runtimeConfig
+  case cmd of
     Register paths groupIds force  -> do paths' <- canonicalize paths
-                                         runIO $ register groupIds paths' force
-    Unregister paths               -> canonicalize paths >>= runIO . unregister
-    AddToGroup groupIds paths      -> canonicalize paths >>= runIO . addToGroup groupIds
-    RemoveFromGroup groupIds paths -> canonicalize paths >>= runIO . removeFromGroup groupIds
-    List groupIds                  -> runIO $ list groupIds
-    Status groupIds gitOpts        -> runIO $ status groupIds gitOpts
-    Pull groupIds gitOpts          -> runIO $ pull groupIds gitOpts
-    Diff groupIds gitOpts          -> runIO $ diff groupIds gitOpts
+                                         run $ register groupIds paths' force
+    Unregister paths               -> canonicalize paths >>= run . unregister
+    AddToGroup groupIds paths      -> canonicalize paths >>= run . addToGroup groupIds
+    RemoveFromGroup groupIds paths -> canonicalize paths >>= run . removeFromGroup groupIds
+    List groupIds                  -> run $ list groupIds
+    Status groupIds gitOpts        -> run $ status groupIds gitOpts
+    Pull groupIds gitOpts          -> run $ pull groupIds gitOpts
+    Diff groupIds gitOpts          -> run $ diff groupIds gitOpts
 
   where
     canonicalize = mapM safeCanonicalize

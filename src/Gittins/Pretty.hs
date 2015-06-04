@@ -25,7 +25,7 @@ summariseRepo :: Repository -> Doc
 summariseRepo (Repository n p _) = fillBreak 15 (cyan $ text n) <> brackets (text p)
 
 prettyLog :: LogMessage -> Doc
-prettyLog msg = case msg of
+prettyLog msg = (<> linebreak) $ case msg of
   AlreadyRegistered path -> text $ "Path [" ++ path ++ "] is already registered."
   NotRegistered path     -> text $ "Path [" ++ path ++ "] does not appear to be registered."
   NotAGitRepository path -> text $

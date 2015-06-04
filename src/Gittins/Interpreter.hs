@@ -8,72 +8,55 @@ import Gittins.Process
 import Gittins.Types
 
 import Control.Concurrent.MVar (newMVar, putMVar, takeMVar)
-import Control.Monad.Base (MonadBase(..))
 import Control.Monad.Free (Free(..))
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Par.IO (ParIO, runParIO)
-import Control.Monad.Trans.Control (MonadBaseControl(..), liftBaseDiscard)
-import Control.Monad.Trans (lift)
-import Control.Monad.Trans.State (StateT, get, put, runStateT)
 import System.Directory (doesDirectoryExist)
 import System.FilePath ((</>))
 import Text.PrettyPrint.ANSI.Leijen (putDoc)
 
-import qualified Control.Monad.Par.Class as Par
+import qualified Control.Concurrent.Async as Async
+import qualified Control.Concurrent.SSem  as Sem
 
 
-instance MonadBase ParIO ParIO where
-  liftBase = id
-
-instance MonadBaseControl ParIO ParIO where
-  type StM ParIO a = a
-  liftBaseWith f = f id
-  restoreM = return
-
-interpretParIO :: Act a -> StateT Config ParIO a
-interpretParIO act = do
-  consoleLock <- liftIO $ newMVar ()
+interpretAsync :: Config -> Sem.SSem -> Act a -> IO (Config, a)
+interpretAsync config workerSemaphore act = do
+  consoleLock <- newMVar ()
   let
-    go :: Act a -> StateT Config ParIO a
-    go act' = case act' of
+    go :: Config -> Act a -> IO (Config, a)
+    go cfg act' = case act' of
 
       Free (Log msg a) -> do
-        liftIO $ do
-          takeMVar consoleLock
-          putDoc (prettyLog msg)
-          putStrLn ""
-          putMVar consoleLock ()
-        go a
+        takeMVar consoleLock
+        putDoc (prettyLog msg)
+        putMVar consoleLock ()
+        go cfg a
 
-      Free (LoadConfig f) -> go . f =<< get
+      Free (LoadConfig f) ->
+        go cfg (f cfg)
 
-      Free (SaveConfig c a) -> do
-        put c
-        go a
+      Free (SaveConfig cfg' a) ->
+        go cfg' a
 
       Free (Process wd cmd args f) -> do
-        result <- liftIO $ processResult wd cmd args
-        go (f result)
+        result <- Sem.withSem workerSemaphore $ processResult wd cmd args
+        go cfg (f result)
 
       Free (IsWorkingTree path f) -> do
-        isDir <- liftIO $ doesDirectoryExist (path </> ".git")
-        go (f isDir)
+        isDir <- doesDirectoryExist (path </> ".git")
+        go cfg (f isDir)
 
       -- If concurrent threads write config, the second thread wins
-      Free (Concurrently a1 a2 f) -> do
-        ivar <- lift Par.new
-        liftBaseDiscard Par.fork $ go a1 >>= lift . Par.put ivar
-        a2' <- go a2
-        a1' <- lift $ Par.get ivar
-        go (f a1' a2')
+      Free (Concurrently a b f) -> do
+        ((_, a'), (cfg', b')) <- Async.concurrently (go cfg a) (go cfg b)
+        go cfg' $ f a' b'
 
-      Pure a -> return a
-    in go act
+      Pure a -> return (cfg, a)
 
+    in go config act
 
-runIO :: Act a -> IO a
-runIO act = do
+runIO :: RuntimeConfig -> Act a -> IO a
+runIO (RuntimeConfig workers) act = do
   config <- loadConfig
-  (a, config') <- runParIO $ runStateT (interpretParIO act) config
+  workerSemaphore <- Sem.new workers
+  (config', a) <- interpretAsync config workerSemaphore act
   saveConfig config'
   return a

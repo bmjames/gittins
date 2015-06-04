@@ -7,7 +7,6 @@ import Gittins.Process
 
 import Control.Monad (void)
 import Control.Monad.Free (Free(..), liftF)
-import Control.Monad.Par (NFData)
 
 data Act' a where
   Log :: LogMessage -> a -> Act' a
@@ -15,7 +14,7 @@ data Act' a where
   SaveConfig :: Config -> a -> Act' a
   Process :: FilePath -> FilePath -> [String] -> (ProcessResult -> a) -> Act' a
   IsWorkingTree :: FilePath -> (Bool -> a) -> Act' a
-  Concurrently :: (NFData b, NFData c) => Act b -> Act c -> (b -> c -> a) -> Act' a
+  Concurrently :: Act b -> Act c -> (b -> c -> a) -> Act' a
 
 instance Functor Act' where
   fmap f a = case a of
@@ -45,16 +44,16 @@ process wd cmd args = liftF (Process wd cmd args id)
 isWorkingTree :: FilePath -> Act Bool
 isWorkingTree path = liftF (IsWorkingTree path id)
 
-concurrently :: (NFData a, NFData b) => Act a -> Act b -> Act (a, b)
+concurrently :: Act a -> Act b -> Act (a, b)
 concurrently a1 a2 = liftF (Concurrently a1 a2 (,))
 
-concurrentSeq :: NFData a => [Act a] -> Act [a]
+concurrentSeq :: [Act a] -> Act [a]
 concurrentSeq = foldr (fmap (fmap (uncurry (:))) . concurrently) (return [])
 
 concurrentSeq_ :: [Act ()] -> Act ()
 concurrentSeq_ = foldr (fmap void . concurrently) (return ())
 
-concurrentFor :: NFData b => [a] -> (a -> Act b) -> Act [b]
+concurrentFor :: [a] -> (a -> Act b) -> Act [b]
 concurrentFor as f = concurrentSeq $ map f as
 
 concurrentFor_ :: [a] -> (a -> Act ()) -> Act ()
