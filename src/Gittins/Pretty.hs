@@ -3,16 +3,13 @@ module Gittins.Pretty (
   , summary
 ) where
 
+import Prelude hiding ((<$>))
+
 import Gittins.Config
 import Gittins.Process
 import Gittins.Types
 
-import Data.List (intercalate)
 import Text.PrettyPrint.ANSI.Leijen hiding (list)
-
--- | Show a list of items
-list :: [String] -> Doc
-list = vcat . map text
 
 summary :: String -> String -> String -> Doc
 summary header body err =

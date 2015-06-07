@@ -7,7 +7,6 @@ import Gittins.Pretty
 import Gittins.Process
 import Gittins.Types
 
-import Control.Concurrent.MVar (newMVar, putMVar, takeMVar)
 import Control.Monad.Free (Free(..))
 import System.Directory (doesDirectoryExist)
 import System.FilePath ((</>))
@@ -17,17 +16,16 @@ import qualified Control.Concurrent.Async as Async
 import qualified Control.Concurrent.SSem  as Sem
 
 
-interpretAsync :: Config -> Sem.SSem -> Act a -> IO (Config, a)
-interpretAsync config workerSemaphore act = do
-  consoleLock <- newMVar ()
+interpretAsync :: Config -> RuntimeConfig -> Act a -> IO (Config, a)
+interpretAsync config (RuntimeConfig workers) act = do
+  consoleLock <- Sem.new 1
+  processSem  <- Sem.new workers
   let
     go :: Config -> Act a -> IO (Config, a)
     go cfg act' = case act' of
 
       Free (Log msg a) -> do
-        takeMVar consoleLock
-        putDoc (prettyLog msg)
-        putMVar consoleLock ()
+        Sem.withSem consoleLock $ putDoc $ prettyLog msg
         go cfg a
 
       Free (LoadConfig f) ->
@@ -37,7 +35,7 @@ interpretAsync config workerSemaphore act = do
         go cfg' a
 
       Free (Process wd cmd args f) -> do
-        result <- Sem.withSem workerSemaphore $ processResult wd cmd args
+        result <- Sem.withSem processSem $ processResult wd cmd args
         go cfg (f result)
 
       Free (IsWorkingTree path f) -> do
@@ -54,9 +52,8 @@ interpretAsync config workerSemaphore act = do
     in go config act
 
 runIO :: RuntimeConfig -> Act a -> IO a
-runIO (RuntimeConfig workers) act = do
+runIO runtimeConfig act = do
   config <- loadConfig
-  workerSemaphore <- Sem.new workers
-  (config', a) <- interpretAsync config workerSemaphore act
+  (config', a) <- interpretAsync config runtimeConfig act
   saveConfig config'
   return a
