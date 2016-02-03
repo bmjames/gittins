@@ -8,9 +8,13 @@ import Gittins.Types
 
 import Data.Either (partitionEithers)
 import Data.List (isPrefixOf, nub)
+import Data.Maybe (isJust)
+
 import Options.Applicative
 import Options.Applicative.Types (Completer(..))
+
 import System.Exit (ExitCode(..))
+import Text.Regex  (Regex, matchRegex, mkRegex)
 
 -- | Type alias for options passed through to Git
 type GitOpt = String
@@ -158,12 +162,16 @@ pull groupIds gitOpts = do
                 . map (uncurry toEither)
                 . filter (not . isUpToDate . snd)
 
-    isUpToDate (ProcessResult ExitSuccess "Already up-to-date.\n" _) = True
+    isUpToDate (ProcessResult ExitSuccess out _) =
+      out == "Already up-to-date.\n" || isJust (matchRegex upToDateRegex out)
     isUpToDate _ = False
 
     toEither repo r@(ProcessResult exit _ _) =
       case exit of ExitSuccess   -> Right repo
                    ExitFailure _ -> Left repo
+
+upToDateRegex :: Regex
+upToDateRegex = mkRegex "Current branch .+ is up to date."
 
 -- | Entry point for diff
 diff :: [GroupId] -> [GitOpt] -> Act ()
