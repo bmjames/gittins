@@ -34,7 +34,7 @@ data Command = Register [FilePath] [GroupId] Force
              deriving (Eq, Ord, Show)
 
 parseOpts :: Parser Opts
-parseOpts = Opts <$> workerOpts <*> (subparser $
+parseOpts = Opts <$> workerOpts <*> subparser (
 
   -- Manage repositories and groups
      command "register"   (info registerOpts
@@ -166,7 +166,7 @@ pull groupIds gitOpts = do
       out == "Already up-to-date.\n" || isJust (matchRegex upToDateRegex out)
     isUpToDate _ = False
 
-    toEither repo r@(ProcessResult exit _ _) =
+    toEither repo (ProcessResult exit _ _) =
       case exit of ExitSuccess   -> Right repo
                    ExitFailure _ -> Left repo
 
